@@ -239,7 +239,7 @@ pip install dataqe-framework
 Without PyPI, users can install directly from GitHub:
 
 ```bash
-pip install git+https://github.com/khadarmohiddin/dataqe-framework.git
+pip install git+https://github.com/ShaikKhadarmohiddin/dataqe-framework.git
 ```
 
 ### Option 3: From Source
@@ -247,7 +247,7 @@ pip install git+https://github.com/khadarmohiddin/dataqe-framework.git
 Users can clone and install:
 
 ```bash
-git clone https://github.com/khadarmohiddin/dataqe-framework.git
+git clone https://github.com/ShaikKhadarmohiddin/dataqe-framework.git
 cd dataqe-framework
 pip install -e .
 ```
