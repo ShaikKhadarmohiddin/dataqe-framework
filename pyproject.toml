@@ -1,14 +1,14 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools<70", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "dataqe-framework"
-version = "0.1.0"
+dynamic = []
+version = "0.1.2"
 description = "Reusable Data Validation Framework for data migration, ETL validation, and cross-database reconciliation"
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
 authors = [
   { name = "Khadar Shaik", email = "khadarmohiddin.shaik@apree.health" }
 ]
@@ -51,3 +51,10 @@ Issues = "https://github.com/ShaikKhadarmohiddin/dataqe-framework/issues"
 [project.scripts]
 dataqe-run = "dataqe_framework.cli:main"
 
+[tool.setuptools]
+package-dir = { "" = "src" }
+packages = [
+    "dataqe_framework",
+    "dataqe_framework.connectors",
+    "dataqe_framework.comparison"
+]

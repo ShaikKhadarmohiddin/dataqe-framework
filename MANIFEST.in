@@ -1,0 +1,4 @@
+include README.md
+exclude LICENSE
+recursive-exclude * *.pyc
+recursive-exclude * __pycache__
