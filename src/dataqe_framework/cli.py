@@ -39,6 +39,22 @@ def get_output_dir() -> str:
     return os.environ.get("DATAQE_OUTPUT_DIR", "./output")
 
 
+def ensure_output_directory(output_dir: str) -> None:
+    """
+    Ensure output directory exists, creating it if necessary.
+
+    Args:
+        output_dir: Path to output directory to create/ensure
+    """
+    output_path = Path(output_dir)
+    try:
+        output_path.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Output directory ready: {output_dir}")
+    except Exception as e:
+        logger.error(f"Failed to create output directory: {e}")
+        raise
+
+
 def clean_output_directory(output_dir: str) -> None:
     """
     Clean output directory by removing all files.
@@ -62,8 +78,9 @@ def main():
     parser.add_argument("--config", required=True)
     args = parser.parse_args()
 
-    # Get output directory and clean it
+    # Get output directory, create if needed, and clean it
     output_dir = get_output_dir()
+    ensure_output_directory(output_dir)
     clean_output_directory(output_dir)
 
     full_config = load_config(args.config)
