@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dataqe-framework"
 dynamic = []
-version = "0.2.0"
+version = "0.2.1"
 description = "Reusable Data Validation Framework for data migration, ETL validation, and cross-database reconciliation"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -22,7 +22,7 @@ keywords = [
   "bigquery"
 ]
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Developers",
   "Intended Audience :: System Administrators",
   "License :: OSI Approved :: MIT License",
@@ -31,6 +31,7 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Software Development :: Libraries :: Python Modules",
   "Topic :: Database",
   "Topic :: Software Development :: Testing",
