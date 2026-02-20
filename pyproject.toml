@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dataqe-framework"
 dynamic = []
-version = "0.1.2"
+version = "0.2.0"
 description = "Reusable Data Validation Framework for data migration, ETL validation, and cross-database reconciliation"
 readme = "README.md"
 requires-python = ">=3.9"
