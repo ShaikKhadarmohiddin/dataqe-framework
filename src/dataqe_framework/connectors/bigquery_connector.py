@@ -59,8 +59,17 @@ class BigQueryConnector(BaseConnector):
         self._query_job_config = None
 
     def _setup_encryption(self):
-        """Setup KMS encryption configuration for PHI data."""
-        if not self.use_encryption or "-h-" not in self.project_id:
+        """
+        Setup KMS encryption configuration for PHI data.
+
+        Detects PHI data based on project_id pattern containing '-h-' or '-p-'
+        and applies Customer-Managed Encryption Keys (CMEK) if enabled.
+        """
+        is_phi = "-h-" in self.project_id or "-p-" in self.project_id
+
+        if not self.use_encryption or not is_phi:
+            if is_phi:
+                logger.warning(f"PHI project detected ({self.project_id}) but encryption is disabled")
             return
 
         try:
