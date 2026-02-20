@@ -1,0 +1,33 @@
+# Example Preprocessor Queries File
+# This file contains queries that return dataset mappings for dynamic replacement
+#
+# Each query should return rows with columns:
+# - source: The source name (e.g., "bcbsa", "bcbsa_pf")
+# - current_release: The current release dataset name
+# - previous_release: The previous release dataset name
+
+get_bcbsa_releases: |
+  SELECT
+    source,
+    current_release,
+    previous_release
+  FROM `my-project.metadata_dataset.release_mapping`
+  WHERE source IN ('bcbsa', 'bcbsa_pf')
+    AND is_active = TRUE
+
+get_all_releases: |
+  SELECT
+    source,
+    current_release,
+    previous_release
+  FROM `my-project.metadata_dataset.release_mapping`
+  WHERE is_active = TRUE
+
+get_provider_releases: |
+  SELECT
+    source,
+    current_release,
+    previous_release
+  FROM `my-project.metadata_dataset.provider_release_mapping`
+  WHERE source IN ('provider_data', 'provider_external_ids')
+    AND is_active = TRUE

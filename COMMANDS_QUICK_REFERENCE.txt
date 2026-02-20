@@ -1,0 +1,225 @@
+═══════════════════════════════════════════════════════════════════════════════
+                          QUICK COMMAND REFERENCE
+═══════════════════════════════════════════════════════════════════════════════
+
+Your GitHub: ShaikKhadarmohiddin
+Repository: dataqe-framework
+URL: https://github.com/ShaikKhadarmohiddin/dataqe-framework
+
+═══════════════════════════════════════════════════════════════════════════════
+                     ONE-TIME SETUP (Run These Commands)
+═══════════════════════════════════════════════════════════════════════════════
+
+Configure Git:
+──────────────
+git config --global user.name "Khadar Shaik"
+git config --global user.email "khadarmohiddin.shaik@apree.health"
+
+Navigate to Project:
+────────────────────
+cd /Users/khadarmohiddin.shaik/Projects/Ventana/dataqe-framework
+
+Initialize Repository:
+──────────────────────
+git init
+
+Stage All Files:
+────────────────
+git add .
+
+Create Initial Commit:
+──────────────────────
+git commit -m "Initial commit: DataQE Framework v0.0.1"
+
+Add Remote (IMPORTANT: This connects to GitHub):
+─────────────────────────────────────────────────
+git remote add origin https://github.com/ShaikKhadarmohiddin/dataqe-framework.git
+
+Rename Branch:
+──────────────
+git branch -M main
+
+Push to GitHub:
+───────────────
+git push -u origin main
+
+Create Release Tag:
+───────────────────
+git tag -a v0.0.1 -m "DataQE Framework v0.0.1 - Initial Release"
+
+Push Tag:
+─────────
+git push origin v0.0.1
+
+═══════════════════════════════════════════════════════════════════════════════
+                        VERIFICATION COMMANDS
+═══════════════════════════════════════════════════════════════════════════════
+
+Check Git Status:
+─────────────────
+git status
+
+View Remotes:
+─────────────
+git remote -v
+
+View Git Log:
+─────────────
+git log --oneline
+
+View Tags:
+──────────
+git tag -l
+
+═══════════════════════════════════════════════════════════════════════════════
+                          FOR FUTURE UPDATES
+═══════════════════════════════════════════════════════════════════════════════
+
+After Making Changes:
+──────────────────────
+git add .
+git commit -m "Your commit message"
+git push origin main
+
+Create New Release:
+───────────────────
+git tag -a v0.0.2 -m "Version 0.0.2 - Bug fixes"
+git push origin v0.0.2
+
+Create Feature Branch:
+──────────────────────
+git checkout -b feature/my-feature
+
+Switch Branches:
+────────────────
+git checkout main
+
+Merge Branch:
+─────────────
+git merge feature/my-feature
+
+═══════════════════════════════════════════════════════════════════════════════
+                      USER INSTALLATION COMMANDS
+═══════════════════════════════════════════════════════════════════════════════
+
+Option 1: Install from GitHub (RECOMMENDED)
+────────────────────────────────────────────
+pip install git+https://github.com/ShaikKhadarmohiddin/dataqe-framework.git
+
+Option 2: Clone and Install
+────────────────────────────
+git clone https://github.com/ShaikKhadarmohiddin/dataqe-framework.git
+cd dataqe-framework
+pip install -e .
+
+Option 3: From PyPI (After Publishing)
+───────────────────────────────────────
+pip install dataqe-framework
+
+═══════════════════════════════════════════════════════════════════════════════
+                          GITHUB WEB INTERFACE
+═══════════════════════════════════════════════════════════════════════════════
+
+Create New Repository:
+──────────────────────
+https://github.com/new
+
+View Your Repository:
+─────────────────────
+https://github.com/ShaikKhadarmohiddin/dataqe-framework
+
+View Your Profile:
+──────────────────
+https://github.com/ShaikKhadarmohiddin
+
+Create Personal Access Token (for HTTPS auth):
+───────────────────────────────────────────────
+https://github.com/settings/tokens
+
+═══════════════════════════════════════════════════════════════════════════════
+                         TROUBLESHOOTING COMMANDS
+═══════════════════════════════════════════════════════════════════════════════
+
+If You Forgot to Initialize:
+────────────────────────────
+cd /Users/khadarmohiddin.shaik/Projects/Ventana/dataqe-framework
+git init
+
+If Remote is Wrong:
+───────────────────
+git remote remove origin
+git remote add origin https://github.com/ShaikKhadarmohiddin/dataqe-framework.git
+
+If Branch is Wrong:
+───────────────────
+git branch -M main
+
+If Push Fails with Auth:
+────────────────────────
+Use Personal Access Token instead of password
+(Get from: https://github.com/settings/tokens)
+
+If You Need to Reset:
+─────────────────────
+git reset --hard
+git clean -fd
+
+═══════════════════════════════════════════════════════════════════════════════
+                            IMPORTANT URLS
+═══════════════════════════════════════════════════════════════════════════════
+
+Your Profile:
+https://github.com/ShaikKhadarmohiddin
+
+Repository:
+https://github.com/ShaikKhadarmohiddin/dataqe-framework
+
+Clone:
+git clone https://github.com/ShaikKhadarmohiddin/dataqe-framework.git
+
+Install:
+pip install git+https://github.com/ShaikKhadarmohiddin/dataqe-framework.git
+
+═══════════════════════════════════════════════════════════════════════════════
+                              PRE-PUSH CHECKLIST
+═══════════════════════════════════════════════════════════════════════════════
+
+Before running: git push -u origin main
+
+[ ] Created repository at https://github.com/new
+[ ] Set visibility to PUBLIC
+[ ] Did NOT initialize with README
+[ ] Repository name is "dataqe-framework"
+[ ] Ran: git init
+[ ] Ran: git add .
+[ ] Ran: git commit -m "..."
+[ ] Ran: git remote add origin https://github.com/ShaikKhadarmohiddin/dataqe-framework.git
+[ ] Ran: git branch -M main
+
+═══════════════════════════════════════════════════════════════════════════════
+                            AFTER PUSH CHECKLIST
+═══════════════════════════════════════════════════════════════════════════════
+
+[ ] Repository is visible at:
+    https://github.com/ShaikKhadarmohiddin/dataqe-framework
+
+[ ] Repository shows "Public" badge
+
+[ ] All files are visible on GitHub
+
+[ ] Can clone with:
+    git clone https://github.com/ShaikKhadarmohiddin/dataqe-framework.git
+
+[ ] Can install with:
+    pip install git+https://github.com/ShaikKhadarmohiddin/dataqe-framework.git
+
+[ ] Release v0.0.1 visible in releases
+
+═══════════════════════════════════════════════════════════════════════════════
+
+For detailed guides, see:
+- README_FOR_DEPLOYMENT.md (Quick Overview)
+- GITHUB_DEPLOYMENT.md (Complete Guide)
+- GITHUB_SETUP.md (Troubleshooting)
+
+═══════════════════════════════════════════════════════════════════════════════

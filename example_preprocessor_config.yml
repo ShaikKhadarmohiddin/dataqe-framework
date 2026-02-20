@@ -1,0 +1,36 @@
+# Example Configuration with Preprocessor Query Support
+# This demonstrates how to use config_query_key for dynamic dataset replacement
+
+config_block_preprocessor_example:
+  source:
+    database_type: gcpbq
+    gcp:
+      project_id: my-gcp-project
+      dataset_id: source_dataset
+      credentials_path: /path/to/credentials.json
+      location: us-central1
+
+    # Optional: Specify a preprocessor query to get dynamic dataset names
+    # This query will be executed in the source database to fetch current and previous release names
+    config_query_key: "get_bcbsa_releases"  # Key to lookup in preprocessor_queries.yml
+    source_name: "bcbsa"                     # Used for placeholder replacement (BCBSA_CURR_WEEK, BCBSA_PREV_WEEK)
+
+  target:
+    database_type: gcpbq
+    gcp:
+      project_id: my-gcp-project
+      dataset_id: target_dataset
+      credentials_path: /path/to/credentials.json
+      location: us-central1
+
+    # Optional: Different preprocessor query for target database
+    config_query_key: "get_bcbsa_releases"  # Same or different query key
+    source_name: "bcbsa"                     # Source name for placeholder replacement
+
+  other:
+    # Path to test script (relative to config file location)
+    validation_script: test_script.yml
+
+    # Path to preprocessor queries file (relative to config file location)
+    # This file contains the actual queries to fetch dataset mappings
+    preprocessor_queries: preprocessor_queries.yml

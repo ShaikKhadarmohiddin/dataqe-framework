@@ -1,0 +1,123 @@
+# Example Test Script with Dynamic Dataset Placeholders
+# Placeholders like BCBSA_CURR_WEEK and BCBSA_PREV_WEEK will be replaced
+# with actual dataset names from the preprocessor query results
+
+- BCBSA_CURRENT_COUNT:
+    severity: high
+
+    source:
+      # This query contains placeholders that will be replaced
+      query: |
+        SELECT COUNT(*) AS value
+        FROM `my-project.BCBSA_CURR_WEEK.users`
+        WHERE status = 'active'
+
+      # The preprocessor will execute the query defined by this key
+      # and replace BCBSA_CURR_WEEK with the actual current release dataset
+      config_query_key: "get_bcbsa_releases"
+      source_name: "bcbsa"
+
+    target:
+      query: |
+        SELECT COUNT(*) AS value
+        FROM `my-project.BCBSA_CURR_WEEK.users`
+        WHERE status = 'active'
+
+      config_query_key: "get_bcbsa_releases"
+      source_name: "bcbsa"
+
+    comparisons:
+      comment: "Current release user count must match between source and target"
+
+- BCBSA_PREVIOUS_COUNT:
+    severity: medium
+
+    source:
+      # Using previous release placeholder
+      query: |
+        SELECT COUNT(*) AS value
+        FROM `my-project.BCBSA_PREV_WEEK.users`
+        WHERE status = 'active'
+
+      config_query_key: "get_bcbsa_releases"
+      source_name: "bcbsa"
+
+    target:
+      query: |
+        SELECT COUNT(*) AS value
+        FROM `my-project.BCBSA_PREV_WEEK.users`
+        WHERE status = 'active'
+
+      config_query_key: "get_bcbsa_releases"
+      source_name: "bcbsa"
+
+    comparisons:
+      comment: "Previous release user count must match"
+
+- BCBSA_PF_CURRENT_AMOUNT:
+    severity: critical
+
+    source:
+      # Using BCBSA_PF source with its own placeholders
+      query: |
+        SELECT SUM(amount) AS value
+        FROM `my-project.BCBSA_PF_CURR_WEEK.transactions`
+        WHERE transaction_date >= CURRENT_DATE() - 7
+
+      config_query_key: "get_bcbsa_releases"
+      source_name: "bcbsa_pf"
+
+    target:
+      query: |
+        SELECT SUM(amount) AS value
+        FROM `my-project.BCBSA_PF_CURR_WEEK.transactions`
+        WHERE transaction_date >= CURRENT_DATE() - 7
+
+      config_query_key: "get_bcbsa_releases"
+      source_name: "bcbsa_pf"
+
+    comparisons:
+      threshold:
+        value: percentage
+        limit: 1
+      comment: "Transaction amounts must match within 1%"
+
+- BCBSA_PF_PREVIOUS_AMOUNT:
+    severity: high
+
+    source:
+      query: |
+        SELECT SUM(amount) AS value
+        FROM `my-project.BCBSA_PF_PREV_WEEK.transactions`
+        WHERE transaction_date >= CURRENT_DATE() - 14
+
+      config_query_key: "get_bcbsa_releases"
+      source_name: "bcbsa_pf"
+
+    target:
+      query: |
+        SELECT SUM(amount) AS value
+        FROM `my-project.BCBSA_PF_PREV_WEEK.transactions`
+        WHERE transaction_date >= CURRENT_DATE() - 14
+
+      config_query_key: "get_bcbsa_releases"
+      source_name: "bcbsa_pf"
+
+    comparisons:
+      threshold:
+        value: absolute
+        limit: 1000
+      comment: "Previous week transaction amounts must match within 1000"
+
+- TEST_WITHOUT_PREPROCESSOR:
+    severity: low
+
+    source:
+      # This test does NOT use preprocessor - query runs as-is
+      query: |
+        SELECT COUNT(*) AS value
+        FROM `my-project.static_dataset.configuration`
+
+    comparisons:
+      expected: ">=1"
+      comment: "Configuration table must have at least 1 row"
