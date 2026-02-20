@@ -34,7 +34,7 @@ Enhancement suggestions are welcome! Please provide:
 
 ```bash
 # Clone the repository
-git clone https://github.com/khadarmohiddin/dataqe-framework.git
+git clone https://github.com/ShaikKhadarmohiddin/dataqe-framework.git
 cd dataqe-framework
 
 # Create virtual environment

@@ -531,13 +531,13 @@ pip install dataqe-framework
 ### From GitHub
 
 ```bash
-pip install git+https://github.com/khadarmohiddin/dataqe-framework.git
+pip install git+https://github.com/ShaikKhadarmohiddin/dataqe-framework.git
 ```
 
 ### From Source
 
 ```bash
-git clone https://github.com/khadarmohiddin/dataqe-framework.git
+git clone https://github.com/ShaikKhadarmohiddin/dataqe-framework.git
 cd dataqe-framework
 pip install -e .
 ```
@@ -546,7 +546,7 @@ pip install -e .
 
 **Khadar Shaik**
 - Email: khadarmohiddin.shaik@apree.health
-- GitHub: [@khadarmohiddin](https://github.com/khadarmohiddin)
+- GitHub: [@ShaikKhadarmohiddin](https://github.com/ShaikKhadarmohiddin)
 
 ## License
 
@@ -558,7 +558,7 @@ MIT License - You are free to use this project for personal, educational, or com
 
 For support and questions:
 - Check documentation in the project repository
-- Open an issue on [GitHub Issues](https://github.com/khadarmohiddin/dataqe-framework/issues)
+- Open an issue on [GitHub Issues](https://github.com/ShaikKhadarmohiddin/dataqe-framework/issues)
 - Review troubleshooting section in [GETTING_STARTED.md](GETTING_STARTED.md)
 - Consult test output and logs for error details
 

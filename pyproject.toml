@@ -1,22 +1,53 @@
-[project.scripts]
-dataqe-run = "dataqe_framework.cli:main"
-
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "dataqe-framework"
 version = "0.1.0"
-description = "Reusable Data Validation Framework"
+description = "Reusable Data Validation Framework for data migration, ETL validation, and cross-database reconciliation"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
 authors = [
-  { name="Khadar Shaik", email="khadarmohiddin.shaik@apree.health" }
+  { name = "Khadar Shaik", email = "khadarmohiddin.shaik@apree.health" }
+]
+keywords = [
+  "data-validation",
+  "data-quality",
+  "testing",
+  "ETL",
+  "migration",
+  "mysql",
+  "bigquery"
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Database",
+  "Topic :: Software Development :: Testing",
 ]
 dependencies = [
-  "google-cloud-bigquery",
-  "pymysql",
-  "pyyaml",
-  "pandas"
+  "google-cloud-bigquery>=3.0.0",
+  "pymysql>=1.0.0",
+  "pyyaml>=5.4",
+  "pandas>=1.3.0"
 ]
-requires-python = ">=3.9"
+
+[project.urls]
+Homepage = "https://github.com/ShaikKhadarmohiddin/dataqe-framework"
+Documentation = "https://github.com/ShaikKhadarmohiddin/dataqe-framework#readme"
+Repository = "https://github.com/ShaikKhadarmohiddin/dataqe-framework.git"
+Issues = "https://github.com/ShaikKhadarmohiddin/dataqe-framework/issues"
+
+[project.scripts]
+dataqe-run = "dataqe_framework.cli:main"
 
