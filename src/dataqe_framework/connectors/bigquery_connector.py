@@ -46,7 +46,7 @@ class BigQueryConnector(BaseConnector):
 
         if "k8_db_details" in config and config_details is not None:
             try:
-                project, db_name = config.get("k8_db_details").split('_')
+                project, db_name = config.get("k8_db_details").split('_', 1)
                 self.project_id = config_details.data['bigquery'][project]['datasets'][db_name]['project_id']
                 self.credentials_path = os.path.join(os.getcwd(), self.project_id.replace('-', '_') + '_sftp_client_secrets.json')
                 self.extract_service_account(config_details, self.credentials_path, self.service_account_name)
