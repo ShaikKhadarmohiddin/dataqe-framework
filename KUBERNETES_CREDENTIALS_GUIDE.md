@@ -93,31 +93,40 @@ spec:
 
 ### Configuration Structure
 
-In your YAML configuration file:
-
+**Local Execution (MYLOCAL)**:
 ```yaml
 database:
   source:
     database_type: mysql
-    db_type: ventana  # or ventanaqe, ventanapurge
+    mysql:
+      host: localhost
+      port: 3306
+      user: root
+      password: password
+      database: ventana
+```
 
-  target:
+**Kubernetes Execution (gcpqa|gcppreprod|gcpprod)**:
+```yaml
+database:
+  source:
     database_type: mysql
-    db_type: ventana
+    k8_db_details: project_ventana  # Format: project_name_database_name
 ```
 
 ### How It Works
 
 **Local Execution (MYLOCAL)**:
-- Configuration must include connection details directly
-- Credentials read from config file: `db_host`, `db_port`, `db_user`, `db_password`
+- Configuration must include connection details directly in `mysql` section
+- Credentials read from config file: `host`, `port`, `user`, `password`, `database`
 
 **Kubernetes Execution (gcpqa|gcppreprod|gcpprod)**:
 - Uses external configuration library (castlight_common_lib)
-- Looks up: `config_details.data['mysql'][database_name]`
-- Returns `db_host`, `db_port`, `db_user`, `db_password`
+- Uses `k8_db_details` parameter in format: `project_name_database_name`
+- Looks up: `config_details.data['mysql'][project][database_name]`
+- Returns `db_host`, `db_port`, `db_user`, `db_password`, `db_name`
 
-### Example Usage
+### Example Usage (Local)
 
 ```python
 from dataqe_framework.connectors.mysql_connector import MySQLConnector
@@ -130,6 +139,20 @@ connector = MySQLConnector(
     password="password",
     database="ventana"
 )
+
+# Connect and execute query
+connector.connect()
+results = connector.execute_query("SELECT * FROM your_table")
+connector.close()
+```
+
+### Example Usage (Kubernetes)
+
+```python
+from dataqe_framework.connectors.mysql_connector import MySQLConnector
+
+# Initialize connector with k8_db_details (will auto-fetch credentials)
+connector = MySQLConnector(k8_db_details="project_ventana")
 
 # Connect and execute query
 connector.connect()
@@ -171,23 +194,40 @@ connector.close()
 
 ### Configuration Structure
 
-In your YAML configuration file:
-
+**Local Execution (MYLOCAL)**:
 ```yaml
 database:
   source:
     database_type: gcpbq
-    project_id: my-gcp-project
-    dataset_id: source_dataset
-    credentials_path: /path/to/credentials.json  # For local use only
-    location: us-central1
+    gcp:
+      project_id: my-gcp-project
+      dataset_id: source_dataset
+      credentials_path: /path/to/credentials.json
+      location: us-central1
 
   target:
     database_type: gcpbq
-    project_id: my-gcp-project
-    dataset_id: target_dataset
-    credentials_path: /path/to/credentials.json
-    location: us-central1
+    gcp:
+      project_id: my-gcp-project
+      dataset_id: target_dataset
+      credentials_path: /path/to/credentials.json
+      location: us-central1
+```
+
+**Kubernetes Execution (gcpqa|gcppreprod|gcpprod)**:
+```yaml
+database:
+  source:
+    database_type: gcpbq
+    gcp:
+      k8_db_details: project_name_source_dataset  # Format: project_name_dataset_name
+      location: us-central1
+
+  target:
+    database_type: gcpbq
+    gcp:
+      k8_db_details: project_name_target_dataset
+      location: us-central1
 ```
 
 ### BigQuery Connector Initialization

@@ -30,6 +30,7 @@ config_block_migration_v2:
 
 ### MySQL Configuration
 
+**Local Development**:
 ```yaml
 source:
   database_type: mysql
@@ -41,20 +42,30 @@ source:
     database: production_db
 ```
 
+**Kubernetes Deployment**:
+```yaml
+source:
+  database_type: mysql
+  k8_db_details: project_name_database_name
+```
+
 **Parameters**:
-- `host` (required): MySQL server hostname or IP
-- `port` (optional): MySQL port, default is 3306
-- `user` (required): Database username
-- `password` (required): Database password
-- `database` (required): Database name to connect to
+- `host` (required for local): MySQL server hostname or IP
+- `port` (optional for local): MySQL port, default is 3306
+- `user` (required for local): Database username
+- `password` (required for local): Database password
+- `database` (required for local): Database name to connect to
+- `k8_db_details` (required for Kubernetes): Format `project_name_database_name` to fetch credentials from external configuration
 
 **Connection Notes**:
 - Ensure the user has SELECT permissions on all required tables
 - For production environments, use dedicated read-only accounts
 - Test connection before using in tests
+- For Kubernetes, use `k8_db_details` to retrieve credentials from `castlight_common_lib`
 
 ### Google BigQuery Configuration
 
+**Local Development**:
 ```yaml
 target:
   database_type: gcpbq
@@ -66,10 +77,21 @@ target:
     use_encryption: false
 ```
 
-**Core Parameters**:
+**Kubernetes Deployment**:
+```yaml
+target:
+  database_type: gcpbq
+  gcp:
+    k8_db_details: project_name_dataset_name
+```
+
+**Core Parameters (Local)**:
 - `project_id` (required): GCP Project ID
 - `dataset_id` (required): BigQuery dataset name
 - `credentials_path` (required): Path to service account JSON file
+
+**Core Parameters (Kubernetes)**:
+- `k8_db_details` (required): Format `project_name_dataset_name` to fetch credentials from external configuration
 
 **Advanced Parameters**:
 - `location` (optional): BigQuery location, default is `us-central1`
@@ -250,7 +272,7 @@ export DATAQE_OWNER=data-engineering-team
 
 ## Configuration Examples
 
-### Example 1: Simple MySQL to BigQuery
+### Example 1: Simple MySQL to BigQuery (Local)
 
 ```yaml
 config_block_prod_validation:
@@ -269,6 +291,23 @@ config_block_prod_validation:
       project_id: my-gcp-prod
       dataset_id: production_bq
       credentials_path: /etc/secrets/gcp-sa.json
+
+  other:
+    validation_script: tests/prod_validation.yml
+```
+
+### Example 1b: Simple MySQL to BigQuery (Kubernetes)
+
+```yaml
+config_block_prod_validation:
+  source:
+    database_type: mysql
+    k8_db_details: prod_production
+
+  target:
+    database_type: gcpbq
+    gcp:
+      k8_db_details: prod_production_bq
 
   other:
     validation_script: tests/prod_validation.yml
