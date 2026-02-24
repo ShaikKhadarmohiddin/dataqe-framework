@@ -46,7 +46,8 @@ source:
 ```yaml
 source:
   database_type: mysql
-  k8_db_details: project_name_database_name
+  mysql:
+    k8_db_details: project_name_database_name
 ```
 
 **Parameters**:

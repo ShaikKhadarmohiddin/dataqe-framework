@@ -30,7 +30,23 @@ config_block_local_preprocessor:
     validation_script: test_script.yml
     preprocessor_queries: preprocessor_queries.yml
 
-# Kubernetes Example (gcpqa|gcppreprod|gcpprod)
+# Kubernetes Example (gcpqa|gcppreprod|gcpprod) - MySQL to BigQuery
+config_block_k8_mysql_to_bq:
+  source:
+    database_type: mysql
+    mysql:
+      k8_db_details: project_ventana  # Format: project_name_database_name
+
+  target:
+    database_type: gcpbq
+    gcp:
+      k8_db_details: project_bcbsa_target  # Format: project_name_dataset_name
+      location: us-central1
+
+  other:
+    validation_script: test_script.yml
+
+# Kubernetes Example (gcpqa|gcppreprod|gcpprod) - BigQuery to BigQuery with Preprocessor
 config_block_k8_preprocessor:
   source:
     database_type: gcpbq

@@ -111,7 +111,8 @@ database:
 database:
   source:
     database_type: mysql
-    k8_db_details: project_ventana  # Format: project_name_database_name
+    mysql:
+      k8_db_details: project_ventana  # Format: project_name_database_name
 ```
 
 ### How It Works
