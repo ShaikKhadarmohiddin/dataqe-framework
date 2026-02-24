@@ -6,6 +6,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
+from dataqe_framework import __version__
 from dataqe_framework.executor import ValidationExecutor
 from dataqe_framework.config_loader import load_config
 from dataqe_framework.reporter import (
@@ -74,8 +75,9 @@ def clean_output_directory(output_dir: str) -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", required=True)
+    parser = argparse.ArgumentParser(description="DataQE Framework - Data Quality and Validation Tool")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument("--config", required=True, help="Path to configuration YAML file")
     args = parser.parse_args()
 
     # Get output directory, create if needed, and clean it
