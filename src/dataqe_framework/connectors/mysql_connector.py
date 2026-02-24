@@ -24,7 +24,7 @@ class MySQLConnector(BaseConnector):
             logger.info(f"Locally MySQLConnector initialized for host={host}, database={database}")
         else:
             try:
-                project, db_name = k8_db_details.split('_')
+                project, db_name = k8_db_details.split('_', 1)
                 self.host = config_details.data['mysql'][project][db_name]['db_host']
                 self.port = config_details.data['mysql'][project][db_name]['db_port']
                 self.user = config_details.data['mysql'][project][db_name]['db_user']
