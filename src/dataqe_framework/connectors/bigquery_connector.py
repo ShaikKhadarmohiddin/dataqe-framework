@@ -3,7 +3,12 @@ import logging
 from google.cloud import bigquery
 from google.oauth2 import service_account
 from .base_connector import BaseConnector
-
+execution_env = os.environ['SPRING_PROFILES_ACTIVE']
+if (execution_env.upper() != "MYLOCAL"):
+    import castlight_common_lib.configfunctions as cfg
+    config_details = cfg.Config('dataqeteam', [os.environ.get('SPRING_PROFILES_ACTIVE')])
+else:
+    config_details = None
 logger = logging.getLogger(__name__)
 
 
@@ -21,35 +26,16 @@ class BigQueryConnector(BaseConnector):
         Args:
             config: Dictionary containing BigQuery configuration with keys:
                 - project_id: GCP project ID
-                - dataset_id: BigQuery dataset ID
                 - service_account (optional): Service account name for credential lookup
                 - credentials_path (optional): Path to service account JSON file
                 - location (optional): BigQuery location (default: us-central1)
-                - location_map (optional): Dict mapping environment to location
                 - infra_core (optional): Infrastructure core name
-                - infra_core_map (optional): Dict mapping environment to infra-core
+                - k8_db_details (optional): Details of GCP project_id dataset_id from K8 env
         """
         self.project_id = config.get("project_id")
-        self.dataset_id = config.get("dataset_id")
-        self.credentials_path = config.get("credentials_path")
-        self.service_account_name = config.get("service_account")
-
-        # Get execution environment
-        self.execution_env = os.environ.get("SPRING_PROFILES_ACTIVE", "mylocal").upper()
-
-        # Get location with fallback to default
-        location_map = config.get("location_map", {})
-        self.location = location_map.get(
-            os.environ.get("SPRING_PROFILES_ACTIVE", "mylocal"),
-            config.get("location", "us-central1")
-        )
-
-        # Get infra-core with fallback to default
-        infra_core_map = config.get("infra_core_map", {})
-        self.infra_core = infra_core_map.get(
-            os.environ.get("SPRING_PROFILES_ACTIVE", "mylocal"),
-            config.get("infra_core", "infra-core-us-central1")
-        )
+        self.service_account_name = config.get("service_account", "qe_kube_sa_key")
+        self.location = config.get("location", "us-central1")
+        self.infra_core = config.get("infra_core", "infra-core-us-central1")
 
         # KMS encryption settings for PHI data
         self.use_encryption = config.get("use_encryption", False)
@@ -57,6 +43,24 @@ class BigQueryConnector(BaseConnector):
         self.client = None
         self._encryption_config = None
         self._query_job_config = None
+
+        if "k8_db_details" in config and config_details is not None:
+            try:
+                project, db_name = config.get("k8_db_details").split('_')
+                self.project_id = config_details.data['bigquery'][project]['datasets'][db_name]['project_id']
+                self.credentials_path = os.path.join(os.getcwd(), self.project_id.replace('-', '_') + '_sftp_client_secrets.json')
+                self.extract_service_account(config_details, self.credentials_path, self.service_account_name)
+            except (ValueError, KeyError) as e:
+                logger.error(f"Failed to extract Kubernetes configuration: {str(e)}")
+                raise ValueError(f"Invalid k8_db_details format or missing configuration: {str(e)}")
+        else:
+            self.credentials_path = config.get("credentials_path")
+
+
+    def extract_service_account(self, config_details, service_config_file, serv_acct_name):
+        with open(service_config_file, "w") as file:
+                file.write(config_details.data['gcp'][serv_acct_name])
+                # print(config_details.data['gcp'][serv_acct_name])
 
     def _setup_encryption(self):
         """

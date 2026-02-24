@@ -1,7 +1,8 @@
 # Example Configuration with Preprocessor Query Support
 # This demonstrates how to use config_query_key for dynamic dataset replacement
 
-config_block_preprocessor_example:
+# Local Development Example (MYLOCAL)
+config_block_local_preprocessor:
   source:
     database_type: gcpbq
     gcp:
@@ -11,9 +12,8 @@ config_block_preprocessor_example:
       location: us-central1
 
     # Optional: Specify a preprocessor query to get dynamic dataset names
-    # This query will be executed in the source database to fetch current and previous release names
-    config_query_key: "get_bcbsa_releases"  # Key to lookup in preprocessor_queries.yml
-    source_name: "bcbsa"                     # Used for placeholder replacement (BCBSA_CURR_WEEK, BCBSA_PREV_WEEK)
+    config_query_key: "get_bcbsa_releases"
+    source_name: "bcbsa"
 
   target:
     database_type: gcpbq
@@ -23,14 +23,34 @@ config_block_preprocessor_example:
       credentials_path: /path/to/credentials.json
       location: us-central1
 
-    # Optional: Different preprocessor query for target database
-    config_query_key: "get_bcbsa_releases"  # Same or different query key
-    source_name: "bcbsa"                     # Source name for placeholder replacement
+    config_query_key: "get_bcbsa_releases"
+    source_name: "bcbsa"
 
   other:
-    # Path to test script (relative to config file location)
     validation_script: test_script.yml
+    preprocessor_queries: preprocessor_queries.yml
 
-    # Path to preprocessor queries file (relative to config file location)
-    # This file contains the actual queries to fetch dataset mappings
+# Kubernetes Example (gcpqa|gcppreprod|gcpprod)
+config_block_k8_preprocessor:
+  source:
+    database_type: gcpbq
+    gcp:
+      k8_db_details: project_bcbsa_releases  # Format: project_name_dataset_name
+      location: us-central1
+
+    # Optional: Specify a preprocessor query to get dynamic dataset names
+    config_query_key: "get_bcbsa_releases"
+    source_name: "bcbsa"
+
+  target:
+    database_type: gcpbq
+    gcp:
+      k8_db_details: project_bcbsa_target  # Format: project_name_dataset_name
+      location: us-central1
+
+    config_query_key: "get_bcbsa_releases"
+    source_name: "bcbsa"
+
+  other:
+    validation_script: test_script.yml
     preprocessor_queries: preprocessor_queries.yml
