@@ -1,7 +1,7 @@
 import yaml
 import os
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from dataqe_framework.connectors import get_connector
 
 logger = logging.getLogger(__name__)
@@ -15,17 +15,19 @@ class QueryPreprocessor:
     and replaces placeholders in test queries with actual dataset names.
     """
 
-    def __init__(self, preprocessor_queries_path: str = None):
+    def __init__(self, preprocessor_queries_path: str = None, preprocessor_config: Dict[str, Any] = None):
         """
         Initialize the QueryPreprocessor.
 
         Args:
             preprocessor_queries_path: Path to preprocessor_queries.yml file.
-                                      If not provided, attempts to load from default location.
+            preprocessor_config: Configuration dict with config_query_key and other settings.
         """
         self.preprocessor_queries_path = preprocessor_queries_path
+        self.preprocessor_config = preprocessor_config or {}
         self.preprocessor_queries = {}
         self.dataset_mappings = {}
+        self.release_labels_cache = None
 
         if self.preprocessor_queries_path:
             self._load_preprocessor_queries()
@@ -186,3 +188,81 @@ class QueryPreprocessor:
 
         # Replace placeholders in query
         return self.replace_placeholders_in_query(query, source_name, mappings)
+
+    def replace_release_labels(self, query: str, connector: Any) -> str:
+        """
+        Automatically replace all release label placeholders in query without needing
+        source_name or config_query_key specified per query.
+
+        This method executes the preprocessor query defined in preprocessor_config,
+        gets all release label mappings, and replaces all SOURCE_CURR_WEEK and SOURCE_PREV_WEEK
+        placeholders in the query.
+
+        Args:
+            query: Original query string with placeholders like SOURCE_CURR_WEEK, SOURCE_PREV_WEEK
+            connector: Database connector for executing preprocessor query
+
+        Returns:
+            Processed query with all placeholders replaced by actual dataset names
+        """
+        # If no preprocessor config or config_query_key, return original query
+        if not self.preprocessor_config or not self.preprocessor_config.get("config_query_key"):
+            return query
+
+        # Get release labels (cache to avoid multiple queries)
+        if self.release_labels_cache is None:
+            config_query_key = self.preprocessor_config.get("config_query_key")
+            release_labels = self.get_dataset_mappings(config_query_key, connector)
+
+            if not release_labels:
+                return query
+
+            # Convert mappings to list format for easier iteration
+            self.release_labels_cache = [
+                {
+                    "source": source,
+                    "curr_release_label": mapping.get("current_release"),
+                    "prev_release_label": mapping.get("previous_release")
+                }
+                for source, mapping in release_labels.items()
+            ]
+
+        # Replace all placeholders in query
+        return self._replace_all_release_labels(query, self.release_labels_cache)
+
+    def _replace_all_release_labels(self, query: str, release_labels: List[Dict[str, str]]) -> str:
+        """
+        Replace all SOURCE_CURR_WEEK and SOURCE_PREV_WEEK placeholders in query.
+
+        Args:
+            query: Original query string
+            release_labels: List of release label mappings
+
+        Returns:
+            Query with all placeholders replaced
+        """
+        modified_query = query
+
+        if not release_labels:
+            return modified_query
+
+        for label in release_labels:
+            source = label.get("source", "").upper()
+            curr_label = label.get("curr_release_label")
+            prev_label = label.get("prev_release_label")
+
+            if not source or not curr_label or not prev_label:
+                continue
+
+            # Replace placeholders
+            modified_query = modified_query.replace(
+                f"{source}_CURR_WEEK", curr_label
+            ).replace(f"{source}_PREV_WEEK", prev_label)
+
+            logger.debug(
+                f"Replaced placeholders for '{source}': "
+                f"{source}_CURR_WEEK → {curr_label}, "
+                f"{source}_PREV_WEEK → {prev_label}"
+            )
+
+        return modified_query

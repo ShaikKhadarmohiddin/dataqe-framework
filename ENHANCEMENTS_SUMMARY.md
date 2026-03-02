@@ -368,11 +368,76 @@ print("BigQuery connection successful")
 bq.close()
 ```
 
+## Version 0.2.5 - Automatic Query Preprocessor Enhancement
+
+### What's New
+
+An enhanced preprocessor feature that automatically replaces ALL release label placeholders in queries without requiring per-test configuration.
+
+**File**: `src/dataqe_framework/preprocessor.py`
+
+#### Key Methods Added:
+
+1. **`replace_release_labels(query, connector)`**
+   - Automatically replaces all `SOURCE_CURR_WEEK` and `SOURCE_PREV_WEEK` placeholders
+   - No need to specify `source_name` per test
+   - Caches results to avoid redundant queries
+
+2. **`_replace_all_release_labels(query, release_labels)`**
+   - Iterates through all release labels
+   - Performs string replacements for all sources in one pass
+
+#### Configuration Changes:
+
+**Before (v0.2.4)**: Per-test configuration needed
+```yaml
+source:
+  query: SELECT COUNT(*) FROM BCBSA_CURR_WEEK.users
+  config_query_key: gcp_pd_prcd_conf      # Per test
+  source_name: bcbsa                       # Per test
+```
+
+**After (v0.2.5)**: Config-level configuration only
+```yaml
+source:
+  database_type: gcpbq
+  gcp:
+    config_query_key: gcp_pd_prcd_conf1    # In database config
+
+target:
+  database_type: gcpbq
+  gcp:
+    config_query_key: gcp_pd_prcd_conf2    # In database config
+
+# Test queries only have placeholders, no config needed
+```
+
+#### How It Works:
+
+1. Reads `config_query_key` from source and target database configs
+2. Executes each query once at test initialization (results cached)
+3. Automatically replaces ALL placeholders in ALL test queries
+4. Each source/target can use different preprocessor queries
+
+#### Benefits:
+
+- ✅ Cleaner test YAML files (no per-test metadata)
+- ✅ Different release mappings for source vs target
+- ✅ Automatic replacement for all placeholders
+- ✅ Cached results for performance
+- ✅ Single test suite works with any release configuration
+
+#### See Also:
+
+- `PREPROCESSOR.md` - Updated with new approach
+- `CONFIGURATION.md` - Updated examples
+
 ## Next Steps
 
 1. Review the changes in the framework
-2. Read `KUBERNETES_CREDENTIALS_GUIDE.md` for detailed usage
-3. Test locally with SPRING_PROFILES_ACTIVE=MYLOCAL
-4. Verify castlight_common_lib configuration for Kubernetes profiles
-5. Deploy to Kubernetes environments (QA, Pre-Prod, Prod)
-6. Monitor logs for proper profile detection and credential extraction
+2. Read `PREPROCESSOR.md` for updated preprocessor documentation
+3. Read `CONFIGURATION.md` for updated config examples
+4. Update your config files to place `config_query_key` in database-specific sections
+5. Simplify your test YAML files by removing per-test preprocessor metadata
+6. Test locally with SPRING_PROFILES_ACTIVE=MYLOCAL
+7. Deploy to Kubernetes environments (QA, Pre-Prod, Prod)

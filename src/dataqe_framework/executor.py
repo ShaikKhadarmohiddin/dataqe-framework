@@ -17,11 +17,48 @@ class ValidationExecutor:
 
         self.source_connector = None
         self.target_connector = None
-        self.preprocessor = None
+        self.source_preprocessor = None
+        self.target_preprocessor = None
 
-        # Initialize preprocessor if path is provided
+        # Initialize preprocessors if path is provided
         if preprocessor_queries_path:
-            self.preprocessor = QueryPreprocessor(preprocessor_queries_path)
+            # Extract config_query_key from source config (under gcp/mysql/etc)
+            src_config = self._extract_preprocessor_config(source_config)
+            self.source_preprocessor = QueryPreprocessor(preprocessor_queries_path, src_config)
+
+            # Extract config_query_key from target config (under gcp/mysql/etc)
+            tgt_config = self._extract_preprocessor_config(target_config)
+            self.target_preprocessor = QueryPreprocessor(preprocessor_queries_path, tgt_config)
+
+    def _extract_preprocessor_config(self, config: dict) -> dict:
+        """
+        Extract preprocessor config (config_query_key) from database-specific config.
+
+        Args:
+            config: Source or target config block
+
+        Returns:
+            Dictionary with config_query_key if found, empty dict otherwise
+        """
+        if not config:
+            return {}
+
+        # Get database type from config
+        db_type = config.get("database_type")
+        if not db_type:
+            return {}
+
+        # Extract database-specific config (gcp, mysql, etc.)
+        db_config = config.get(db_type)
+        if not db_config or not isinstance(db_config, dict):
+            return {}
+
+        # Extract config_query_key if present
+        config_query_key = db_config.get("config_query_key")
+        if config_query_key:
+            return {"config_query_key": config_query_key}
+
+        return {}
 
     def setup_connectors(self):
         if self.source_config:
@@ -59,11 +96,9 @@ class ValidationExecutor:
             if "source" in test_config:
                 source_query = test_config["source"]["query"]
 
-                # Process query with preprocessor if config_query_key exists
+                # Process query with source preprocessor (automatic replacement of all release labels)
                 source_query = self._process_query_with_preprocessor(
-                    source_query,
-                    test_config["source"],
-                    self.source_connector
+                    source_query, self.source_connector, self.source_preprocessor
                 )
 
                 source_query_start = datetime.now()
@@ -75,11 +110,9 @@ class ValidationExecutor:
             if "target" in test_config:
                 target_query = test_config["target"]["query"]
 
-                # Process query with preprocessor if config_query_key exists
+                # Process query with target preprocessor (automatic replacement of all release labels)
                 target_query = self._process_query_with_preprocessor(
-                    target_query,
-                    test_config["target"],
-                    self.target_connector
+                    target_query, self.target_connector, self.target_preprocessor
                 )
 
                 target_query_start = datetime.now()
@@ -128,43 +161,28 @@ class ValidationExecutor:
         # assuming single value queries
         return list(result[0].values())[0]
 
-    def _process_query_with_preprocessor(self, query: str, config_block: dict, connector) -> str:
+    def _process_query_with_preprocessor(self, query: str, connector, preprocessor) -> str:
         """
-        Process query with preprocessor if config_query_key is present in config block.
+        Process query with preprocessor to replace all release label placeholders.
+
+        Automatically replaces all SOURCE_CURR_WEEK and SOURCE_PREV_WEEK placeholders
+        without needing per-test configuration.
 
         Args:
             query: Original query string
-            config_block: Configuration block for source or target (should contain query and optionally config_query_key)
             connector: Database connector to use
+            preprocessor: QueryPreprocessor instance (source or target)
 
         Returns:
             Processed query (with replacements if applicable) or original query
         """
-        # Check if config_query_key exists in config block
-        config_query_key = config_block.get("config_query_key")
-
-        if not config_query_key:
-            # No preprocessor query key, return original query
+        if not preprocessor or not connector:
+            # Preprocessor not initialized or no connector, return original query
             return query
-
-        if not self.preprocessor:
-            # Preprocessor not initialized, return original query
-            logger.warning(
-                f"config_query_key '{config_query_key}' specified but preprocessor not initialized"
-            )
-            return query
-
-        # Get source_name from config block if provided
-        source_name = config_block.get("source_name")
 
         try:
-            # Process query through preprocessor
-            processed_query = self.preprocessor.process_query(
-                query,
-                config_query_key,
-                source_name,
-                connector
-            )
+            # Process query through preprocessor with automatic replacement
+            processed_query = preprocessor.replace_release_labels(query, connector)
             return processed_query
         except Exception as e:
             logger.error(f"Error processing query with preprocessor: {str(e)}")
