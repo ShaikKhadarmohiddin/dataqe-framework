@@ -113,6 +113,7 @@ def main():
 
     # Get preprocessor queries path if specified
     preprocessor_queries_path = config_block["other"].get("preprocessor_queries")
+
     if preprocessor_queries_path:
         # Resolve relative path if needed
         if not os.path.isabs(preprocessor_queries_path):

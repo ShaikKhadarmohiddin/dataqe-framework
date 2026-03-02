@@ -183,10 +183,11 @@ other:
 - Multiple environment-specific dataset names
 - Release-based naming conventions (e.g., `BCBSA_CURR_WEEK`, `BCBSA_PREV_WEEK`)
 - Data that changes based on deployment
+- Different release versions for source vs target environments
 
 ### Configuration
 
-Add `config_query_key` and `source_name` to source/target blocks:
+Add `config_query_key` inside the database-specific config (gcp/mysql):
 
 ```yaml
 source:
@@ -195,9 +196,7 @@ source:
     project_id: my-project
     dataset_id: source_dataset
     credentials_path: /path/to/credentials.json
-
-  config_query_key: get_bcbsa_releases
-  source_name: bcbsa
+    config_query_key: source_releases_query    # Add this
 
 target:
   database_type: gcpbq
@@ -205,36 +204,41 @@ target:
     project_id: my-project
     dataset_id: target_dataset
     credentials_path: /path/to/credentials.json
-
-  config_query_key: get_bcbsa_releases
-  source_name: bcbsa
+    config_query_key: target_releases_query    # Add this
 ```
 
 **Parameters**:
-- `config_query_key`: Key to look up in `preprocessor_queries.yml`
-- `source_name`: Name to match against query results
+- `config_query_key`: Key to look up in `preprocessor_queries.yml` (different keys can be used for source/target)
 
 ### Preprocessor Queries File
 
 Create a separate YAML file with dataset mapping queries:
 
 ```yaml
-get_bcbsa_releases: |
+# Query for source environment (e.g., staging)
+source_releases_query: |
   SELECT source, current_release, previous_release
   FROM release_metadata
-  WHERE source = 'bcbsa'
-    AND is_active = TRUE
+  WHERE environment = 'staging' AND is_active = TRUE
 
-get_all_releases: |
+# Query for target environment (e.g., production)
+target_releases_query: |
   SELECT source, current_release, previous_release
   FROM release_metadata
-  WHERE is_active = TRUE
+  WHERE environment = 'production' AND is_active = TRUE
 ```
 
 **Query Requirements**:
-- Must return `source` column (matches `source_name` in config)
+- Must return `source` column (becomes the basis for placeholders)
 - Must return `current_release` or `curr_release_label` column
 - Must return `previous_release` or `prev_release_label` column
+
+### How It Works
+
+1. Framework reads `config_query_key` from source and target database configs
+2. Executes each query once at test start (results are cached)
+3. Automatically replaces ALL `SOURCE_CURR_WEEK` and `SOURCE_PREV_WEEK` placeholders in test queries
+4. **No per-test configuration needed** - write tests once with placeholders, they work everywhere
 
 ### Placeholder Replacement
 
@@ -244,13 +248,18 @@ The framework replaces uppercase placeholder names:
 # In test query:
 SELECT COUNT(*) FROM BCBSA_CURR_WEEK.users
 
-# With preprocessor result where source='bcbsa' and current_release='bcbsa_export1':
+# With preprocessor result where source='BCBSA' and current_release='bcbsa_export1':
 SELECT COUNT(*) FROM bcbsa_export1.users
 ```
 
 **Placeholder Format**:
-- Current release: `{SOURCE_NAME}_CURR_WEEK` or `{SOURCE_NAME}_CURRENT`
-- Previous release: `{SOURCE_NAME}_PREV_WEEK` or `{SOURCE_NAME}_PREVIOUS`
+- Current release: `{SOURCE_NAME}_CURR_WEEK`
+- Previous release: `{SOURCE_NAME}_PREV_WEEK`
+
+**Example Placeholders**:
+- `ANTHEM_PF_CURR_WEEK` → replaced with current release value
+- `BCBSA_PF_PREV_WEEK` → replaced with previous release value
+- `PROVIDER_DIRECTORY_CURR_WEEK` → replaced with current release value
 
 ## Environment Variables
 
@@ -314,7 +323,7 @@ config_block_prod_validation:
     validation_script: tests/prod_validation.yml
 ```
 
-### Example 2: With Dynamic Dataset Replacement
+### Example 2: With Dynamic Dataset Replacement (Different Source/Target Releases)
 
 ```yaml
 config_block_release_validation:
@@ -324,8 +333,7 @@ config_block_release_validation:
       project_id: my-project
       dataset_id: staging
       credentials_path: /path/to/credentials.json
-    config_query_key: get_release_info
-    source_name: bcbsa
+      config_query_key: source_releases_query    # Staging releases
 
   target:
     database_type: gcpbq
@@ -333,8 +341,7 @@ config_block_release_validation:
       project_id: my-project
       dataset_id: production
       credentials_path: /path/to/credentials.json
-    config_query_key: get_release_info
-    source_name: bcbsa
+      config_query_key: target_releases_query    # Production releases
 
   other:
     validation_script: tests/release_tests.yml
