@@ -48,8 +48,11 @@ class ValidationExecutor:
         if not db_type:
             return {}
 
+        # Map database type to config key (gcpbq uses "gcp" config key)
+        config_key = "gcp" if db_type == "gcpbq" else db_type
+
         # Extract database-specific config (gcp, mysql, etc.)
-        db_config = config.get(db_type)
+        db_config = config.get(config_key)
         if not db_config or not isinstance(db_config, dict):
             return {}
 

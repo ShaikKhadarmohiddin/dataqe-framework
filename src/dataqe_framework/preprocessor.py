@@ -100,6 +100,14 @@ class QueryPreprocessor:
                     }
 
             logger.info(f"Generated dataset mappings: {mappings}")
+            if mappings:
+                logger.info("=" * 60)
+                logger.info("PREPROCESSOR QUERY RESULTS:")
+                for source, mapping in mappings.items():
+                    logger.info(f"  Source: {source}")
+                    logger.info(f"    Current Release: {mapping.get('current_release')}")
+                    logger.info(f"    Previous Release: {mapping.get('previous_release')}")
+                logger.info("=" * 60)
             return mappings
 
         except Exception as e:
@@ -244,25 +252,35 @@ class QueryPreprocessor:
         modified_query = query
 
         if not release_labels:
+            logger.debug("No release labels to replace")
             return modified_query
 
+        replacements_made = False
         for label in release_labels:
             source = label.get("source", "").upper()
             curr_label = label.get("curr_release_label")
             prev_label = label.get("prev_release_label")
 
             if not source or not curr_label or not prev_label:
+                logger.debug(f"Skipping incomplete label for source '{source}'")
                 continue
 
-            # Replace placeholders
-            modified_query = modified_query.replace(
-                f"{source}_CURR_WEEK", curr_label
-            ).replace(f"{source}_PREV_WEEK", prev_label)
+            # Check if placeholders exist in query before replacing
+            curr_placeholder = f"{source}_CURR_WEEK"
+            prev_placeholder = f"{source}_PREV_WEEK"
 
-            logger.debug(
-                f"Replaced placeholders for '{source}': "
-                f"{source}_CURR_WEEK → {curr_label}, "
-                f"{source}_PREV_WEEK → {prev_label}"
-            )
+            if curr_placeholder in modified_query or prev_placeholder in modified_query:
+                replacements_made = True
+                modified_query = modified_query.replace(curr_placeholder, curr_label).replace(prev_placeholder, prev_label)
+                logger.info(
+                    f"Replaced placeholders for '{source}': "
+                    f"{curr_placeholder} → {curr_label}, "
+                    f"{prev_placeholder} → {prev_label}"
+                )
+            else:
+                logger.debug(f"No placeholders found for '{source}'")
+
+        if not replacements_made:
+            logger.info("No placeholder replacements made - query returned unchanged")
 
         return modified_query
