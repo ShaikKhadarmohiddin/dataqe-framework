@@ -100,14 +100,14 @@ class QueryPreprocessor:
                     }
 
             logger.info(f"Generated dataset mappings: {mappings}")
-            if mappings:
-                logger.info("=" * 60)
-                logger.info("PREPROCESSOR QUERY RESULTS:")
-                for source, mapping in mappings.items():
-                    logger.info(f"  Source: {source}")
-                    logger.info(f"    Current Release: {mapping.get('current_release')}")
-                    logger.info(f"    Previous Release: {mapping.get('previous_release')}")
-                logger.info("=" * 60)
+            # if mappings:
+            #     logger.info("=" * 60)
+            #     logger.info("PREPROCESSOR QUERY RESULTS:")
+            #     for source, mapping in mappings.items():
+            #         logger.info(f"  Source: {source}")
+            #         logger.info(f"    Current Release: {mapping.get('current_release')}")
+            #         logger.info(f"    Previous Release: {mapping.get('previous_release')}")
+            #     logger.info("=" * 60)
             return mappings
 
         except Exception as e:
@@ -272,11 +272,11 @@ class QueryPreprocessor:
             if curr_placeholder in modified_query or prev_placeholder in modified_query:
                 replacements_made = True
                 modified_query = modified_query.replace(curr_placeholder, curr_label).replace(prev_placeholder, prev_label)
-                logger.info(
-                    f"Replaced placeholders for '{source}': "
-                    f"{curr_placeholder} → {curr_label}, "
-                    f"{prev_placeholder} → {prev_label}"
-                )
+                # logger.info(
+                #     f"Replaced placeholders for '{source}': "
+                #     f"{curr_placeholder} → {curr_label}, "
+                #     f"{prev_placeholder} → {prev_label}"
+                # )
             else:
                 logger.debug(f"No placeholders found for '{source}'")
 
