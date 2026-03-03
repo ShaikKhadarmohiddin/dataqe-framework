@@ -2,6 +2,178 @@
 
 Complete reference for configuring the DataQE Framework.
 
+## Multi-Block Configuration
+
+The DataQE Framework supports multiple configuration blocks in a single config file, allowing you to validate different environments or database pairs without creating separate configuration files.
+
+### What is a Block?
+
+A configuration block is a complete validation setup consisting of:
+- A source database configuration
+- A target database configuration
+- Validation script and other settings
+
+### How Blocks Are Identified
+
+Blocks must be named with the `config_block_` prefix:
+
+```yaml
+config_block_mysql_to_bq:          # Valid block
+config_block_prod_validation:       # Valid block
+config_block_qa_testing:            # Valid block
+source_config:                      # Invalid block (not recognized)
+```
+
+Only top-level keys starting with `config_block_` are recognized as configuration blocks.
+
+### Execution Modes
+
+#### 1. Single Block (Default - Backward Compatible)
+If no block options are specified, the framework executes the **first valid block** found:
+```bash
+dataqe-run --config config.yml
+```
+
+#### 2. Specific Block
+Execute a particular block by its name:
+```bash
+dataqe-run --config config.yml --block qa_validation
+# Executes only the "config_block_qa_validation" block
+```
+
+#### 3. All Blocks
+Execute all valid blocks sequentially:
+```bash
+dataqe-run --config config.yml --all-blocks
+# Executes all config_block_* blocks in order
+```
+
+### Block Validation Rules
+
+A valid configuration block must contain:
+- `source`: A dictionary with database configuration
+- `target`: A dictionary with database configuration
+- `other`: A dictionary with validation settings
+
+**Example of Valid Block:**
+```yaml
+config_block_example:
+  source:
+    database_type: mysql
+    mysql:
+      host: localhost
+      port: 3306
+      user: root
+      password: password
+      database: test_db
+  target:
+    database_type: gcpbq
+    gcp:
+      project_id: my-project
+      dataset_id: test_dataset
+      credentials_path: /path/to/creds.json
+  other:
+    validation_script: tests/test_suite.yml
+```
+
+**Invalid blocks** (incomplete or malformed) are automatically skipped with a warning message.
+
+### Multi-Block Example
+
+Create a single config file with multiple blocks for different environments:
+
+```yaml
+# QA Environment Validation
+config_block_qa_validation:
+  source:
+    database_type: mysql
+    mysql:
+      host: qa-mysql.internal
+      port: 3306
+      user: qa_user
+      password: qa_password
+      database: qa_database
+
+  target:
+    database_type: gcpbq
+    gcp:
+      project_id: my-project-qa
+      dataset_id: qa_dataset
+      credentials_path: /secrets/qa-creds.json
+
+  other:
+    validation_script: tests/qa_tests.yml
+    preprocessor_queries: config/preprocessor.yml
+
+# Production Environment Validation
+config_block_prod_validation:
+  source:
+    database_type: mysql
+    mysql:
+      host: prod-mysql.internal
+      port: 3306
+      user: prod_user
+      password: prod_password
+      database: prod_database
+
+  target:
+    database_type: gcpbq
+    gcp:
+      project_id: my-project-prod
+      dataset_id: prod_dataset
+      credentials_path: /secrets/prod-creds.json
+
+  other:
+    validation_script: tests/prod_tests.yml
+    preprocessor_queries: config/preprocessor.yml
+
+# Staging Environment Validation
+config_block_staging_validation:
+  source:
+    database_type: mysql
+    mysql:
+      host: staging-mysql.internal
+      port: 3306
+      user: staging_user
+      password: staging_password
+      database: staging_database
+
+  target:
+    database_type: gcpbq
+    gcp:
+      project_id: my-project-staging
+      dataset_id: staging_dataset
+      credentials_path: /secrets/staging-creds.json
+
+  other:
+    validation_script: tests/staging_tests.yml
+    preprocessor_queries: config/preprocessor.yml
+```
+
+### Execution Examples
+
+```bash
+# Execute first block only (QA)
+dataqe-run --config config.yml
+# Output: "Executing first block: qa_validation"
+
+# Execute specific block (Production)
+dataqe-run --config config.yml --block prod_validation
+# Output: "Executing block: prod_validation"
+
+# Execute all blocks sequentially
+dataqe-run --config config.yml --all-blocks
+# Output: "Executing 3 blocks: qa_validation, prod_validation, staging_validation"
+```
+
+### Report Generation
+
+When executing multiple blocks:
+- A **single ExecutionReport.html** is generated containing results from all blocks
+- Test names include block context for clarity
+- Summary statistics aggregate across all blocks
+- Each test result includes the block_name field for reference
+
 ## Configuration File Structure
 
 Configuration files are YAML-based with the following structure:

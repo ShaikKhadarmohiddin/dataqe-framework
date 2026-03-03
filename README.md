@@ -2,7 +2,7 @@
 
 A powerful Python framework for validating data quality and ensuring data consistency between source and target databases. Designed for data migration projects, ETL validation, and cross-database reconciliation.
 
-**Version**: 0.0.1
+**Version**: 0.2.7
 
 ## Overview
 
@@ -137,6 +137,103 @@ Check output directory for reports:
 ./output/ExecutionReport.csv
 ./output/FailedExecutionReport.html
 ```
+
+## Multi-Block Configuration Support
+
+The framework supports running multiple configuration blocks in a single execution. This allows you to validate different database pairs or environments without creating separate config files.
+
+### What is a Block?
+
+A configuration block is a complete validation setup with source database, target database, and test scripts. Each block starts with `config_block_` followed by a unique identifier.
+
+### Execution Modes
+
+#### 1. Single Block (Default - Backward Compatible)
+Executes the first valid block found:
+```bash
+dataqe-run --config config.yml
+```
+
+#### 2. Specific Block
+Execute a particular block by name:
+```bash
+dataqe-run --config config.yml --block validation_qa
+```
+
+#### 3. All Blocks
+Execute all valid blocks sequentially:
+```bash
+dataqe-run --config config.yml --all-blocks
+```
+
+### Multi-Block Example
+
+Create a single config file with multiple blocks for different environments:
+
+```yaml
+# Validation for QA environment
+config_block_validation_qa:
+  source:
+    database_type: mysql
+    mysql:
+      host: qa-mysql.example.com
+      port: 3306
+      user: db_user
+      password: db_password
+      database: qa_db
+
+  target:
+    database_type: gcpbq
+    gcp:
+      project_id: my-gcp-qa
+      dataset_id: qa_dataset
+      credentials_path: /path/to/credentials.json
+
+  other:
+    validation_script: tests/qa_tests.yml
+
+# Validation for Production environment
+config_block_validation_prod:
+  source:
+    database_type: mysql
+    mysql:
+      host: prod-mysql.example.com
+      port: 3306
+      user: db_user
+      password: db_password
+      database: prod_db
+
+  target:
+    database_type: gcpbq
+    gcp:
+      project_id: my-gcp-prod
+      dataset_id: prod_dataset
+      credentials_path: /path/to/credentials.json
+
+  other:
+    validation_script: tests/prod_tests.yml
+```
+
+Then execute:
+```bash
+# Run only QA validation
+dataqe-run --config config.yml --block validation_qa
+
+# Run only Production validation
+dataqe-run --config config.yml --block validation_prod
+
+# Run both sequentially
+dataqe-run --config config.yml --all-blocks
+```
+
+### Block Validation
+
+Each block must contain:
+- `source` section with database configuration
+- `target` section with database configuration
+- `other` section with validation_script path
+
+Invalid or incomplete blocks are automatically skipped with a warning.
 
 ## Configuration
 
@@ -343,15 +440,29 @@ export DATAQE_OWNER=team-name
 
 ## Command Line Usage
 
-### Basic Execution
+### Basic Execution (First Block)
 ```bash
 dataqe-run --config /path/to/config.yml
+```
+
+### Multi-Block Execution
+```bash
+# Execute a specific block by name
+dataqe-run --config /path/to/config.yml --block validation_qa
+
+# Execute all blocks in the config file
+dataqe-run --config /path/to/config.yml --all-blocks
 ```
 
 ### With Custom Output Directory
 ```bash
 export DATAQE_OUTPUT_DIR=/custom/output
 dataqe-run --config /path/to/config.yml
+```
+
+### With Version Check
+```bash
+dataqe-run --version
 ```
 
 ### CI/CD Integration
@@ -564,7 +675,20 @@ For support and questions:
 
 ## Version History
 
-### 0.0.1 (Initial Release)
+### 0.2.7 (Multi-Block Configuration Support)
+- **NEW**: Execute multiple configuration blocks in a single run
+- **NEW**: CLI options for block selection (--block, --all-blocks)
+- **NEW**: Flexible execution modes (default, specific, all)
+- **NEW**: Backward compatible (default executes first block)
+- Enhanced block validation and error handling
+- Improved logging for block execution
+
+### 0.2.6-0.2.5 (Preprocessor & Configuration Enhancements)
+- Automatic query preprocessor with config-level settings
+- Multi-release dataset validation
+- Enhanced configuration flexibility
+
+### 0.2.4-0.0.1 (Foundation & Stability)
 - Multi-database support (MySQL, BigQuery)
 - YAML-based test configuration
 - Flexible comparison modes

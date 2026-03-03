@@ -1,8 +1,72 @@
-# Quick Start: Kubernetes Credentials Guide
+# Quick Start Guide
 
-## TL;DR
+DataQE Framework quick reference for common use cases.
 
-The dataqe-framework now supports environment-based credential extraction using `SPRING_PROFILES_ACTIVE`.
+## TL;DR - Multi-Block Configuration
+
+The dataqe-framework v0.2.7 now supports multiple configuration blocks in a single config file.
+
+### Quick Commands
+
+```bash
+# Run first block (default)
+dataqe-run --config config.yml
+
+# Run specific block
+dataqe-run --config config.yml --block validation_qa
+
+# Run all blocks
+dataqe-run --config config.yml --all-blocks
+```
+
+### Quick Example
+
+```yaml
+config_block_qa:
+  source:
+    database_type: mysql
+    mysql:
+      host: qa-db.local
+      port: 3306
+      user: user
+      password: pass
+      database: qa_db
+  target:
+    database_type: gcpbq
+    gcp:
+      project_id: project-qa
+      dataset_id: qa
+      credentials_path: ./creds.json
+  other:
+    validation_script: tests/qa.yml
+
+config_block_prod:
+  source:
+    database_type: mysql
+    mysql:
+      host: prod-db.local
+      port: 3306
+      user: user
+      password: pass
+      database: prod_db
+  target:
+    database_type: gcpbq
+    gcp:
+      project_id: project-prod
+      dataset_id: prod
+      credentials_path: ./creds.json
+  other:
+    validation_script: tests/prod.yml
+```
+
+Then execute:
+```bash
+dataqe-run --config config.yml --all-blocks
+```
+
+## Kubernetes Credentials Guide
+
+The dataqe-framework also supports environment-based credential extraction using `SPRING_PROFILES_ACTIVE`.
 
 ### Environment Profiles
 
@@ -160,15 +224,22 @@ bq.close()
 
 ## Files Changed
 
-### Modified Files
+### Modified (v0.2.7)
+- `src/dataqe_framework/cli.py` - Multi-block execution logic
+- `src/dataqe_framework/executor.py` - Block name tracking
+- `pyproject.toml` - Version bumped to 0.2.7
+- `README.md` - Multi-block examples
+- `CONFIGURATION.md` - Multi-block configuration guide
+- `QUICK_START.md` - This file
+
+### Previously Modified (v0.2.5+)
 - `src/dataqe_framework/connectors/mysql_connector.py` - Added logging
 - `src/dataqe_framework/connectors/bigquery_connector.py` - Improved PHI detection
 
-### New Files
+### New Files Created
 - `src/dataqe_framework/credentials_extractor.py` - Credentials extraction utility
 - `KUBERNETES_CREDENTIALS_GUIDE.md` - Detailed guide
 - `ENHANCEMENTS_SUMMARY.md` - Full summary
-- `QUICK_START.md` - This file
 
 ## Troubleshooting
 
