@@ -1,6 +1,216 @@
 # DataQE Framework Enhancements Summary
 
-## Overview
+## Version 0.2.7 - Multi-Block Configuration Support (Latest)
+
+### Overview
+
+The DataQE Framework now supports executing multiple configuration blocks in a single run. This major enhancement allows you to define different database validation scenarios in one config file and execute them flexibly.
+
+### What's New
+
+#### Multi-Block Configuration
+Execute different validation configurations without creating separate config files:
+
+```yaml
+config_block_qa_validation:
+  source: {...}
+  target: {...}
+  other: {...}
+
+config_block_prod_validation:
+  source: {...}
+  target: {...}
+  other: {...}
+```
+
+#### New CLI Options
+- **No block option (default)**: Execute first block found
+  ```bash
+  dataqe-run --config config.yml
+  ```
+
+- **`--block NAME`**: Execute specific block
+  ```bash
+  dataqe-run --config config.yml --block prod_validation
+  ```
+
+- **`--all-blocks`**: Execute all blocks sequentially
+  ```bash
+  dataqe-run --config config.yml --all-blocks
+  ```
+
+#### New Functions in cli.py
+
+**`is_valid_block(block_config)`**
+```python
+def is_valid_block(block_config):
+    """
+    Check if a configuration block has the required structure.
+
+    A valid block must have 'source', 'target', and 'other' keys that are all dicts.
+    """
+    if not isinstance(block_config, dict):
+        return False
+
+    return (
+        "source" in block_config and isinstance(block_config["source"], dict) and
+        "target" in block_config and isinstance(block_config["target"], dict) and
+        "other" in block_config and isinstance(block_config["other"], dict)
+    )
+```
+
+**`get_all_blocks(full_config)`**
+```python
+def get_all_blocks(full_config: dict) -> dict:
+    """
+    Extract all valid configuration blocks from the config.
+
+    A block is any top-level key whose value is a valid block config.
+    Blocks are returned in their original order.
+    """
+    blocks = {}
+    for key, value in full_config.items():
+        if is_valid_block(value):
+            blocks[key] = value
+    return blocks
+```
+
+**`find_block(full_config, block_name)`**
+```python
+def find_block(full_config: dict, block_name: str) -> tuple:
+    """
+    Find a specific configuration block by name.
+
+    Returns:
+        tuple: (block_name, block_config)
+    """
+    if block_name not in full_config:
+        available_blocks = list(get_all_blocks(full_config).keys())
+        raise ValueError(
+            f"Block '{block_name}' not found.\n"
+            f"Available blocks: {', '.join(available_blocks) if available_blocks else 'None'}"
+        )
+    # ... validation logic
+```
+
+**`get_first_block(full_config)`**
+```python
+def get_first_block(full_config: dict) -> tuple:
+    """
+    Get the first valid configuration block (for backward compatibility).
+    """
+    blocks = get_all_blocks(full_config)
+    if not blocks:
+        raise ValueError(
+            "No valid configuration blocks found in config file.\n"
+            "A valid block must have 'source', 'target', and 'other' keys."
+        )
+
+    first_name = next(iter(blocks.keys()))
+    return (first_name, blocks[first_name])
+```
+
+**`execute_block(block_name, block_config, config_path, output_dir)`**
+```python
+def execute_block(block_name: str, block_config: dict, config_path: str, output_dir: str) -> list:
+    """
+    Execute a single configuration block.
+
+    Returns:
+        list: List of test results from the executor
+    """
+    # ... block execution logic
+```
+
+#### Enhanced main() Function
+
+The main CLI handler now:
+1. Creates a mutually exclusive group for block selection
+2. Determines which blocks to execute based on arguments
+3. Iterates through blocks executing each one
+4. Aggregates results across all blocks
+5. Generates single combined report
+
+```python
+# Determine which blocks to execute
+blocks_to_execute = []
+
+if args.block:
+    # Execute specific block
+    block_name, block_config = find_block(full_config, args.block)
+    blocks_to_execute = [(block_name, block_config)]
+
+elif args.all_blocks:
+    # Execute all blocks
+    all_blocks = get_all_blocks(full_config)
+    blocks_to_execute = list(all_blocks.items())
+
+else:
+    # Execute first block (backward compatibility)
+    block_name, block_config = get_first_block(full_config)
+    blocks_to_execute = [(block_name, block_config)]
+
+# Execute all selected blocks
+all_results = []
+for block_name, block_config in blocks_to_execute:
+    results = execute_block(block_name, block_config, args.config, output_dir)
+    all_results.extend(results)
+```
+
+#### Enhanced executor.py
+
+The executor now tracks which block a test belongs to:
+
+```python
+# In execute_block function
+for result in results:
+    result["block_name"] = block_name
+```
+
+### Files Modified
+
+**src/dataqe_framework/cli.py**
+- Added `is_valid_block()` function
+- Added `get_all_blocks()` function
+- Added `find_block()` function
+- Added `get_first_block()` function
+- Added `execute_block()` function
+- Enhanced `main()` function with block selection logic
+- Added `--block` and `--all-blocks` arguments to argument parser
+- Updated logging to show block execution context
+
+**src/dataqe_framework/executor.py**
+- Added block name tracking to test results
+- Block name included in each test result for reference
+
+**pyproject.toml**
+- Version bumped to 0.2.7
+
+### Backward Compatibility
+
+✅ **Fully backward compatible** - existing configurations work without changes:
+- Single-block configs execute the first block by default
+- All existing scripts continue to work
+- No breaking changes to configuration structure
+
+### Use Cases
+
+1. **Multi-Environment Testing**: Validate the same application across QA, Staging, and Production in one config file
+2. **Progressive Validation**: Define minimal to comprehensive validation blocks
+3. **CI/CD Pipelines**: Select blocks based on deployment environment
+4. **Release Testing**: Validate multiple data sources in parallel execution
+
+### Benefits
+
+- 📦 **Single Config File**: Manage multiple validation scenarios in one place
+- 🔄 **Flexible Execution**: Run specific blocks or all blocks as needed
+- 📊 **Consolidated Reports**: Aggregate results from all blocks
+- ✅ **Backward Compatible**: Existing configurations work unchanged
+- 🎯 **Clear Block Identification**: Block names appear in logs and results
+
+---
+
+## Version 0.2.5+ - Overview
 
 The dataqe-framework has been enhanced to support environment-based credential extraction using the `SPRING_PROFILES_ACTIVE` environment variable. This enables seamless deployment across local development and multiple Kubernetes environments (QA, Pre-Production, Production).
 
