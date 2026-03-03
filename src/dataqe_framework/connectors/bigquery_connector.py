@@ -144,18 +144,18 @@ class BigQueryConnector(BaseConnector):
             self.connect()
 
         try:
-            logger.info(f"Executing query: {query[:100]}..." if len(query) > 100 else f"Executing query: {query}")
+            #logger.info(f"Executing query: {query[:100]}..." if len(query) > 100 else f"Executing query: {query}")
             query_job = self.client.query(query)
-            logger.info(f"Query submitted, job ID: {query_job.job_id}")
+            #logger.info(f"Query submitted, job ID: {query_job.job_id}")
             results = query_job.result(timeout=120)
-            logger.info(f"Query execution completed")
+            #logger.info(f"Query execution completed")
 
             # Convert to list of dictionaries
             rows = []
             for row in results:
                 rows.append(dict(row))
 
-            logger.info(f"Query executed successfully, returned {len(rows)} rows")
+            #logger.info(f"Query executed successfully, returned {len(rows)} rows")
             return rows
         except Exception as e:
             logger.error(f"Failed to execute BigQuery query: {str(e)}")
