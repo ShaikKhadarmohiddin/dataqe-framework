@@ -59,7 +59,7 @@ class MySQLConnector(BaseConnector):
             with self.connection.cursor() as cursor:
                 cursor.execute(query)
                 result = cursor.fetchall()
-            logger.info(f"Query executed successfully, returned {len(result)} rows")
+            # logger.info(f"Query executed successfully, returned {len(result)} rows")
             return result
         except Exception as e:
             logger.error(f"Failed to execute MySQL query: {str(e)}")

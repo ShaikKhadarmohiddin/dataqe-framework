@@ -2,7 +2,7 @@
 
 A powerful Python framework for validating data quality and ensuring data consistency between source and target databases. Designed for data migration projects, ETL validation, and cross-database reconciliation.
 
-**Version**: 0.2.7
+**Version**: 0.2.8
 
 ## Overview
 
@@ -456,8 +456,56 @@ dataqe-run --config /path/to/config.yml --all-blocks
 
 ### With Custom Output Directory
 ```bash
+dataqe-run --config /path/to/config.yml --output-dir /custom/output
+```
+
+Or use environment variable:
+```bash
 export DATAQE_OUTPUT_DIR=/custom/output
 dataqe-run --config /path/to/config.yml
+```
+
+### With Variable Replacement
+Replace variables in test scripts dynamically:
+
+```bash
+# Replace a single variable
+dataqe-run --config /path/to/config.yml --replace "@employerID,5"
+
+# Replace multiple variables
+dataqe-run --config /path/to/config.yml \
+  --replace "@employerID,5" \
+  --replace "@storeID,10" \
+  --replace "status,active"
+
+# Set ENVIRONMENT (SPRING_PROFILES_ACTIVE env var, defaults to 'gcpqa')
+export SPRING_PROFILES_ACTIVE=production
+dataqe-run --config /path/to/config.yml
+```
+
+**Variable Replacement Features:**
+- **ENVIRONMENT** - Automatically replaced with `SPRING_PROFILES_ACTIVE` env var (default: `gcpqa`)
+- **Custom variables** - Use `@variableName,value` format in `--replace`
+- **Multiple replacements** - Use `--replace` multiple times
+- **Works in queries** - Replacements apply to all SQL queries in test scripts
+
+Example test script with variables:
+```yaml
+- test_count_by_environment:
+    source:
+      query: |
+        SELECT COUNT(*) as value
+        FROM MySQL_ENVIRONMENT.insurance_companies
+        WHERE employer_id = @employerID
+```
+
+Running: `dataqe-run --config config.yml --replace "@employerID,123"`
+
+Results in:
+```sql
+SELECT COUNT(*) as value
+FROM MySQL_ENVIRONMENT.insurance_companies
+WHERE employer_id = 123
 ```
 
 ### With Version Check
@@ -674,6 +722,15 @@ For support and questions:
 - Consult test output and logs for error details
 
 ## Version History
+
+### 0.2.8 (Variable Replacement & Output Directory)
+- **NEW**: Variable replacement in test scripts (--replace option)
+- **NEW**: Automatic ENVIRONMENT replacement from SPRING_PROFILES_ACTIVE (default: gcpqa)
+- **NEW**: Custom output directory via CLI (--output-dir)
+- **IMPROVED**: Path resolution for validation scripts (from current working directory)
+- **IMPROVED**: Path resolution for preprocessor queries (from current working directory)
+- Support for multiple variable replacements in single execution
+- Backward compatible with existing configurations
 
 ### 0.2.7 (Multi-Block Configuration Support)
 - **NEW**: Execute multiple configuration blocks in a single run

@@ -277,10 +277,10 @@ class QueryPreprocessor:
                 #     f"{curr_placeholder} → {curr_label}, "
                 #     f"{prev_placeholder} → {prev_label}"
                 # )
-            else:
-                logger.debug(f"No placeholders found for '{source}'")
+            # else:
+                # logger.debug(f"No placeholders found for '{source}'")
 
-        if not replacements_made:
-            logger.info("No placeholder replacements made - query returned unchanged")
+        # if not replacements_made:
+        #     logger.info("No placeholder replacements made - query returned unchanged")
 
         return modified_query
