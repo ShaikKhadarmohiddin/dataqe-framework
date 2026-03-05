@@ -7,6 +7,19 @@ from dataqe_framework.preprocessor import QueryPreprocessor
 logger = logging.getLogger(__name__)
 
 
+def _should_skip_test(test_config: dict) -> bool:
+    """
+    Check if a test should be skipped based on invalid marker.
+
+    Args:
+        test_config: Test configuration dictionary
+
+    Returns:
+        bool: True if test has 'invalid: true', False otherwise
+    """
+    return test_config.get("invalid", False) is True
+
+
 class ValidationExecutor:
 
     def __init__(self, source_config, target_config, test_cases, preprocessor_queries_path: str = None):
@@ -90,10 +103,18 @@ class ValidationExecutor:
             test_name = list(test.keys())[0]
             test_config = test[test_name]
 
+            # Skip tests marked as invalid
+            if _should_skip_test(test_config):
+                logger.info(f"Skipping test '{test_name}' (marked as invalid)")
+                continue
+
             source_value = None
             target_value = None
             source_query_time_ms = 0.0
             target_query_time_ms = 0.0
+            error_message = None
+            error_type = None
+            error_occurred = False
 
             # Run Source
             if "source" in test_config:
@@ -104,13 +125,20 @@ class ValidationExecutor:
                     source_query, self.source_connector, self.source_preprocessor
                 )
 
-                source_query_start = datetime.now()
-                source_result = self.source_connector.execute_query(source_query)
-                source_query_time_ms = self._calculate_duration_ms(source_query_start)
-                source_value = self._extract_value(source_result)
+                try:
+                    source_query_start = datetime.now()
+                    source_result = self.source_connector.execute_query(source_query)
+                    source_query_time_ms = self._calculate_duration_ms(source_query_start)
+                    source_value = self._extract_value(source_result)
+                except Exception as e:
+                    source_query_time_ms = self._calculate_duration_ms(source_query_start)
+                    error_occurred = True
+                    error_type = type(e).__name__
+                    error_message = str(e)
+                    logger.error(f"Error executing source query for test '{test_name}': {error_type} - {error_message}")
 
-            # Run Target
-            if "target" in test_config:
+            # Run Target (only if source succeeded or no source)
+            if "target" in test_config and not error_occurred:
                 target_query = test_config["target"]["query"]
 
                 # Process query with target preprocessor (automatic replacement of all release labels)
@@ -118,24 +146,35 @@ class ValidationExecutor:
                     target_query, self.target_connector, self.target_preprocessor
                 )
 
-                target_query_start = datetime.now()
-                target_result = self.target_connector.execute_query(target_query)
-                target_query_time_ms = self._calculate_duration_ms(target_query_start)
-                target_value = self._extract_value(target_result)
+                try:
+                    target_query_start = datetime.now()
+                    target_result = self.target_connector.execute_query(target_query)
+                    target_query_time_ms = self._calculate_duration_ms(target_query_start)
+                    target_value = self._extract_value(target_result)
+                except Exception as e:
+                    target_query_time_ms = self._calculate_duration_ms(target_query_start)
+                    error_occurred = True
+                    error_type = type(e).__name__
+                    error_message = str(e)
+                    logger.error(f"Error executing target query for test '{test_name}': {error_type} - {error_message}")
 
-            # Compare
-            comparison_start = datetime.now()
-            status = compare_values(
-                source_value,
-                target_value,
-                test_config
-            )
-            comparison_time_ms = self._calculate_duration_ms(comparison_start)
+            # Compare (skip if error occurred)
+            status = "ERROR" if error_occurred else None
+            comparison_time_ms = 0.0
+
+            if not error_occurred:
+                comparison_start = datetime.now()
+                status = compare_values(
+                    source_value,
+                    target_value,
+                    test_config
+                )
+                comparison_time_ms = self._calculate_duration_ms(comparison_start)
 
             test_end = datetime.now()
             execution_time_ms = self._calculate_duration_ms(test_start)
 
-            results.append({
+            result_dict = {
                 "test_name": test_name,
                 "severity": test_config.get("severity"),
                 "source_value": source_value,
@@ -147,8 +186,13 @@ class ValidationExecutor:
                 "source_query_time_ms": source_query_time_ms,
                 "target_query_time_ms": target_query_time_ms,
                 "comparison_time_ms": comparison_time_ms,
-                "script_name": script_name
-            })
+                "script_name": script_name,
+                "error_occurred": error_occurred,
+                "error_type": error_type,
+                "error_message": error_message
+            }
+
+            results.append(result_dict)
 
         return results
 
