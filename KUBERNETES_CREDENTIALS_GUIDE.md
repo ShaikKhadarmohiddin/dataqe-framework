@@ -103,7 +103,7 @@ database:
       port: 3306
       user: root
       password: password
-      database: ventana
+      database: mysql
 ```
 
 **Kubernetes Execution (gcpqa|gcppreprod|gcpprod)**:
@@ -112,7 +112,7 @@ database:
   source:
     database_type: mysql
     mysql:
-      k8_db_details: project_ventana  # Format: project_name_database_name
+      k8_db_details: project_mysql  # Format: project_name_database_name
 ```
 
 ### How It Works
@@ -138,7 +138,7 @@ connector = MySQLConnector(
     port=3306,
     user="root",
     password="password",
-    database="ventana"
+    database="mysql"
 )
 
 # Connect and execute query
@@ -153,7 +153,7 @@ connector.close()
 from dataqe_framework.connectors.mysql_connector import MySQLConnector
 
 # Initialize connector with k8_db_details (will auto-fetch credentials)
-connector = MySQLConnector(k8_db_details="project_ventana")
+connector = MySQLConnector(k8_db_details="project_mysql")
 
 # Connect and execute query
 connector.connect()
@@ -175,7 +175,7 @@ profile = CredentialsExtractor.get_profile()
 config = external_config_lib.Config('service_config_file', [profile])
 
 # Extract MySQL credentials
-mysql_creds = CredentialsExtractor.extract_mysql_config(config, 'ventana')
+mysql_creds = CredentialsExtractor.extract_mysql_config(config, 'mysql')
 
 # Create connector with extracted credentials
 connector = MySQLConnector(
@@ -239,7 +239,7 @@ from dataqe_framework.connectors.bigquery_connector import BigQueryConnector
 # Local development
 config = {
     "project_id": "my-project",
-    "dataset_id": "ventana",
+    "dataset_id": "mysql",
     "credentials_path": "config/service_account.json",
     "location": "us-central1"
 }
@@ -265,7 +265,7 @@ config = external_config_lib.Config('service_config_file', [profile])
 bq_config = CredentialsExtractor.extract_bigquery_config(
     config,
     project_name='myproject',
-    dataset_name='ventana'
+    dataset_name='mysql'
 )
 
 # Extract and save service account credentials
@@ -303,7 +303,7 @@ Example:
 ```python
 config = {
     "project_id": "my-project-h-phi",  # Detected as PHI
-    "dataset_id": "ventana",
+    "dataset_id": "mysql",
     "use_encryption": True,  # Enable KMS encryption
     "kms_key_ring": "infra-default-cmek",
     "location": "us-central1",
@@ -327,12 +327,12 @@ database:
     db_port: 3306
     db_user: root
     db_password: password
-    db_name: ventana
+    db_name: mysql
 
   target:
     database_type: gcpbq
     project_id: my-project
-    dataset_id: ventana
+    dataset_id: mysql
     credentials_path: ./config/service_account.json
     location: us-central1
 ```
@@ -342,15 +342,15 @@ database:
 The framework expects the external configuration library (e.g., castlight_common_lib) to provide:
 
 ```python
-config_details.data['mysql']['ventana'] = {
+config_details.data['mysql']['mysql'] = {
     'db_host': 'mysql.gcpqa.internal',
     'db_port': 3306,
     'db_user': 'database_user',
     'db_password': 'encrypted_password',
-    'db_name': 'ventana'
+    'db_name': 'mysql'
 }
 
-config_details.data['bigquery']['myproject']['datasets']['ventana'] = {
+config_details.data['bigquery']['myproject']['datasets']['mysql'] = {
     'project_id': 'my-project-qa',
     'location': 'us-central1'
 }
@@ -369,8 +369,8 @@ config_details.data['gcp']['dataqe-sa'] = {
 Both connectors provide detailed logging for troubleshooting:
 
 ```
-MySQLConnector - INFO - 2024-01-15 10:30:45 - MySQLConnector initialized for host=localhost, database=ventana
-MySQLConnector - INFO - 2024-01-15 10:30:46 - Establishing MySQL connection to localhost:3306/ventana
+MySQLConnector - INFO - 2024-01-15 10:30:45 - MySQLConnector initialized for host=localhost, database=mysql
+MySQLConnector - INFO - 2024-01-15 10:30:46 - Establishing MySQL connection to localhost:3306/mysql
 MySQLConnector - INFO - 2024-01-15 10:30:46 - MySQL connection established successfully
 MySQLConnector - INFO - 2024-01-15 10:30:47 - Query executed successfully, returned 42 rows
 
@@ -429,7 +429,7 @@ from dataqe_framework.credentials_extractor import CredentialsExtractor
 
 try:
     profile = CredentialsExtractor.get_profile()
-    mysql_creds = CredentialsExtractor.extract_mysql_config(config, 'ventana')
+    mysql_creds = CredentialsExtractor.extract_mysql_config(config, 'mysql')
 
     # Verify required fields
     assert mysql_creds['host']

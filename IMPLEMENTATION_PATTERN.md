@@ -17,7 +17,7 @@ connector = MySQLConnector(
     port=3306,
     user='root',
     password='password',
-    database='ventana'
+    database='mysql'
 )
 
 # Step 2: Connect
@@ -30,8 +30,8 @@ results = connector.execute_query("SELECT * FROM table")
 connector.close()
 
 # Output logs:
-# MySQLConnector - INFO - MySQLConnector initialized for host=localhost, database=ventana
-# MySQLConnector - INFO - Establishing MySQL connection to localhost:3306/ventana
+# MySQLConnector - INFO - MySQLConnector initialized for host=localhost, database=mysql
+# MySQLConnector - INFO - Establishing MySQL connection to localhost:3306/mysql
 # MySQLConnector - INFO - MySQL connection established successfully
 # MySQLConnector - INFO - Query executed successfully, returned N rows
 # MySQLConnector - INFO - Closing MySQL connection
@@ -45,7 +45,7 @@ from dataqe_framework.connectors.bigquery_connector import BigQueryConnector
 # Step 1: Prepare config
 config = {
     "project_id": "my-project-dev",
-    "dataset_id": "ventana",
+    "dataset_id": "mysql",
     "credentials_path": "./config/service_account.json",
     "location": "us-central1",
     "use_encryption": False  # Not needed for non-PHI
@@ -86,7 +86,7 @@ profile = CredentialsExtractor.get_profile()
 config = cfg.Config('service_config_file', [profile])
 
 # Step 3: Extract MySQL credentials
-mysql_creds = CredentialsExtractor.extract_mysql_config(config, 'ventana')
+mysql_creds = CredentialsExtractor.extract_mysql_config(config, 'mysql')
 
 # Step 4: Create connector with extracted credentials
 connector = MySQLConnector(
@@ -108,8 +108,8 @@ connector.close()
 
 # Output logs:
 # CredentialsExtractor - INFO - Execution profile: gcpqa
-# CredentialsExtractor - INFO - MySQL config extracted for database: ventana
-# MySQLConnector - INFO - MySQLConnector initialized for host=mysql.gcpqa.internal, database=ventana
+# CredentialsExtractor - INFO - MySQL config extracted for database: mysql
+# MySQLConnector - INFO - MySQLConnector initialized for host=mysql.gcpqa.internal, database=mysql
 # MySQLConnector - INFO - MySQL connection established successfully
 # MySQLConnector - INFO - Query executed successfully, returned N rows
 ```
@@ -133,7 +133,7 @@ config = cfg.Config('service_config_file', [profile])
 bq_config = CredentialsExtractor.extract_bigquery_config(
     config,
     project_name='myproject',
-    dataset_name='ventana'
+    dataset_name='mysql'
 )
 
 # Step 4: Extract and save service account credentials
@@ -160,7 +160,7 @@ connector.close()
 
 # Output logs:
 # CredentialsExtractor - INFO - Execution profile: gcpqa
-# CredentialsExtractor - INFO - BigQuery config extracted for project: myproject, dataset: ventana
+# CredentialsExtractor - INFO - BigQuery config extracted for project: myproject, dataset: mysql
 # CredentialsExtractor - INFO - Service account credentials extracted: dataqe-sa
 # CredentialsExtractor - INFO - Service account credentials saved to: /tmp/gcp_service_account.json
 # BigQueryConnector - INFO - BigQuery connection established (with encryption)
@@ -175,11 +175,11 @@ connector.close()
 LOCAL (MYLOCAL)              │  KUBERNETES (gcpqa/gcppreprod/gcpprod)
 ─────────────────────────────┼──────────────────────────────────────
 MySQLConnector(              │  mysql_creds = CredentialsExtractor.
-  host='localhost',          │    extract_mysql_config(config, 'ventana')
+  host='localhost',          │    extract_mysql_config(config, 'mysql')
   port=3306,                 │  MySQLConnector(
   user='root',               │    host=mysql_creds['host'],
   password='password',       │    port=mysql_creds['port'],
-  database='ventana'         │    user=mysql_creds['user'],
+  database='mysql'         │    user=mysql_creds['user'],
 )                            │    password=mysql_creds['password'],
                              │    database=mysql_creds['database']
                              │  )
@@ -192,7 +192,7 @@ LOCAL (MYLOCAL)              │  KUBERNETES (gcpqa/gcppreprod/gcpprod)
 ─────────────────────────────┼──────────────────────────────────────
 config = {                   │  bq_config = CredentialsExtractor.
   'project_id': 'my-proj',   │    extract_bigquery_config(
-  'dataset_id': 'ventana',   │      config, 'myproject', 'ventana'
+  'dataset_id': 'mysql',   │      config, 'myproject', 'mysql'
   'credentials_path':        │    )
     './config/sa.json',      │  sa_key = CredentialsExtractor.
   'location': 'us-central1'  │    extract_service_account(
@@ -265,7 +265,7 @@ logger = logging.getLogger(__name__)
 
 try:
     mysql_creds = CredentialsExtractor.extract_mysql_config(
-        config, 'ventana'
+        config, 'mysql'
     )
 except KeyError as e:
     logger.error(f"MySQL configuration not found: {e}")
@@ -273,10 +273,10 @@ except ValueError as e:
     logger.error(f"Invalid MySQL configuration: {e}")
 
 # Possible errors:
-# - MySQL configuration not found for database: ventana
+# - MySQL configuration not found for database: mysql
 # - Missing required MySQL field: host
 # - Project 'myproject' not found. Available: [...]
-# - Dataset 'ventana' not found in project 'myproject'
+# - Dataset 'mysql' not found in project 'myproject'
 # - Service account 'dataqe-sa' not found
 ```
 
@@ -309,7 +309,7 @@ def main():
         config = cfg.Config('service_config_file', [profile])
 
         # Step 3: Setup MySQL connection
-        mysql_creds = CredentialsExtractor.extract_mysql_config(config, 'ventana')
+        mysql_creds = CredentialsExtractor.extract_mysql_config(config, 'mysql')
         mysql = MySQLConnector(
             host=mysql_creds['host'],
             port=mysql_creds['port'],
@@ -321,7 +321,7 @@ def main():
 
         # Step 4: Setup BigQuery connection
         bq_config = CredentialsExtractor.extract_bigquery_config(
-            config, 'myproject', 'ventana'
+            config, 'myproject', 'mysql'
         )
         sa_key = CredentialsExtractor.extract_service_account(config, 'dataqe-sa')
         creds_path = CredentialsExtractor.save_service_account_json(
@@ -376,12 +376,12 @@ def test_mysql_connector_local():
         port=3306,
         user='root',
         password='password',
-        database='ventana'
+        database='mysql'
     )
 
     # Verify initialization
     assert connector.host == 'localhost'
-    assert connector.database == 'ventana'
+    assert connector.database == 'mysql'
 
 @patch('castlight_common_lib.configfunctions.Config')
 def test_mysql_connector_kubernetes(mock_config):
@@ -391,19 +391,19 @@ def test_mysql_connector_kubernetes(mock_config):
     # Mock configuration
     mock_config.return_value.data = {
         'mysql': {
-            'ventana': {
+            'mysql': {
                 'db_host': 'mysql.gcpqa.internal',
                 'db_port': 3306,
                 'db_user': 'dbuser',
                 'db_password': 'dbpass',
-                'db_name': 'ventana'
+                'db_name': 'mysql'
             }
         }
     }
 
     # Extract credentials
     creds = CredentialsExtractor.extract_mysql_config(
-        mock_config.return_value, 'ventana'
+        mock_config.return_value, 'mysql'
     )
 
     # Create connector

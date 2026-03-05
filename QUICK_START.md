@@ -2,9 +2,53 @@
 
 DataQE Framework quick reference for common use cases.
 
-## TL;DR - Multi-Block Configuration
+## TL;DR - Variable Replacement & Custom Output (v0.2.8)
 
-The dataqe-framework v0.2.7 now supports multiple configuration blocks in a single config file.
+The dataqe-framework v0.2.8 now supports variable replacement in test scripts and custom output directories.
+
+### Quick Variable Replacement
+
+```bash
+# Replace ENVIRONMENT (auto from SPRING_PROFILES_ACTIVE, default: gcpqa)
+dataqe-run --config config.yml
+
+# Replace with custom environment
+export SPRING_PROFILES_ACTIVE=production
+dataqe-run --config config.yml
+
+# Replace custom variables
+dataqe-run --config config.yml --replace "@employerID,5" --replace "@storeID,10"
+
+# Custom output directory
+dataqe-run --config config.yml --output-dir /reports/custom
+```
+
+### Variable Replacement in Tests
+
+```yaml
+# Test script
+- test_with_variables:
+    source:
+      query: |
+        SELECT COUNT(*) FROM MySQL_ENVIRONMENT.companies
+        WHERE employer_id = @employerID
+```
+
+Running:
+```bash
+dataqe-run --config config.yml --replace "@employerID,5"
+```
+
+Becomes:
+```sql
+SELECT COUNT(*) FROM MySQL_gcpqa.companies WHERE employer_id = 5
+```
+
+---
+
+## TL;DR - Multi-Block Configuration (v0.2.7)
+
+The dataqe-framework v0.2.7 also supports multiple configuration blocks in a single config file.
 
 ### Quick Commands
 
@@ -96,12 +140,12 @@ database:
     db_port: 3306
     db_user: root
     db_password: password
-    db_name: ventana
+    db_name: mysql
 
   target:
     database_type: gcpbq
     project_id: my-project-dev
-    dataset_id: ventana
+    dataset_id: mysql
     credentials_path: ./config/service_account.json
     location: us-central1
 ```
@@ -116,7 +160,7 @@ mysql = MySQLConnector(
     port=3306,
     user='root',
     password='password',
-    database='ventana'
+    database='mysql'
 )
 mysql.connect()
 results = mysql.execute_query("SELECT * FROM table")
@@ -155,7 +199,7 @@ profile = CredentialsExtractor.get_profile()  # Returns: gcpqa, gcppreprod, or g
 config = cfg.Config('service_config_file', [profile])
 
 # Extract MySQL credentials
-mysql_creds = CredentialsExtractor.extract_mysql_config(config, 'ventana')
+mysql_creds = CredentialsExtractor.extract_mysql_config(config, 'mysql')
 
 # Create connector
 mysql = MySQLConnector(
@@ -185,7 +229,7 @@ config = cfg.Config('service_config_file', [profile])
 bq_config = CredentialsExtractor.extract_bigquery_config(
     config,
     project_name='myproject',
-    dataset_name='ventana'
+    dataset_name='mysql'
 )
 
 # Extract and save service account credentials
@@ -224,19 +268,23 @@ bq.close()
 
 ## Files Changed
 
-### Modified (v0.2.7)
-- `src/dataqe_framework/cli.py` - Multi-block execution logic
-- `src/dataqe_framework/executor.py` - Block name tracking
-- `pyproject.toml` - Version bumped to 0.2.7
-- `README.md` - Multi-block examples
-- `CONFIGURATION.md` - Multi-block configuration guide
+### Modified (v0.2.8)
+- `src/dataqe_framework/cli.py` - Variable replacement, output directory control, path resolution
+- `pyproject.toml` - Version bumped to 0.2.8
+- `README.md` - Variable replacement examples, output directory usage
+- `CONFIGURATION.md` - Variable replacement guide, improved path documentation
+- `ENHANCEMENTS_SUMMARY.md` - v0.2.8 feature documentation
 - `QUICK_START.md` - This file
+
+### Modified (v0.2.7)
+- `src/dataqe_framework/executor.py` - Block name tracking
+- README.md, CONFIGURATION.md - Multi-block examples
 
 ### Previously Modified (v0.2.5+)
 - `src/dataqe_framework/connectors/mysql_connector.py` - Added logging
 - `src/dataqe_framework/connectors/bigquery_connector.py` - Improved PHI detection
 
-### New Files Created
+### New Files Created (v0.2.5+)
 - `src/dataqe_framework/credentials_extractor.py` - Credentials extraction utility
 - `KUBERNETES_CREDENTIALS_GUIDE.md` - Detailed guide
 - `ENHANCEMENTS_SUMMARY.md` - Full summary

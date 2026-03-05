@@ -1,6 +1,204 @@
 # DataQE Framework Enhancements Summary
 
-## Version 0.2.7 - Multi-Block Configuration Support (Latest)
+## Version 0.2.8 - Variable Replacement & Output Directory Control (Latest)
+
+### Overview
+
+The DataQE Framework now supports dynamic variable replacement in test scripts and custom output directory specification via CLI. This enhancement provides greater flexibility in managing test configurations across different environments and run conditions.
+
+### What's New
+
+#### 1. Variable Replacement in Test Scripts
+
+Replace variables in test queries dynamically without modifying test files:
+
+```bash
+# Single variable
+dataqe-run --config config.yml --replace "@employerID,5"
+
+# Multiple variables
+dataqe-run --config config.yml \
+  --replace "@employerID,5" \
+  --replace "@storeID,10"
+```
+
+#### 2. Automatic ENVIRONMENT Variable
+
+The `ENVIRONMENT` variable is automatically replaced with `SPRING_PROFILES_ACTIVE` env var (defaults to `gcpqa`):
+
+```yaml
+# Test script
+FROM MYSQL.insurance_companies
+
+# Executed as (with default):
+FROM MYSQL.insurance_companies
+
+# Or with custom environment:
+export SPRING_PROFILES_ACTIVE=production
+# Becomes:
+FROM MYSQL.insurance_companies
+```
+
+#### 3. Custom Output Directory via CLI
+
+Specify output directory directly from command line:
+
+```bash
+# Using --output-dir argument
+dataqe-run --config config.yml --output-dir /custom/output
+
+# Priority order:
+# 1. CLI argument (--output-dir)
+# 2. Environment variable (DATAQE_OUTPUT_DIR)
+# 3. Default (./output)
+```
+
+#### 4. Improved Path Resolution
+
+Fixed validation script and preprocessor queries path resolution to use current working directory instead of config file directory:
+
+```bash
+# Config file in one location
+cd ~/airflow
+dataqe-run --config src/data_validations/pipeline_validations/config.yml
+
+# Validation script resolves from current working directory
+validation_script: src/data_validations/pipeline_validations/test_suite.yml
+# Resolved to: ~/airflow/src/data_validations/pipeline_validations/test_suite.yml
+```
+
+### New Functions in cli.py
+
+**`parse_replacements(replace_args: list) -> dict`**
+```python
+def parse_replacements(replace_args: list) -> dict:
+    """
+    Parse replacement arguments from command line.
+
+    Format: --replace "var1,value1" --replace "var2,value2"
+    """
+    replacements = {}
+    for arg in replace_args:
+        var_name, var_value = arg.split(",", 1)
+        if var_name.startswith("@"):
+            var_name = var_name[1:]
+        replacements[var_name] = var_value
+    return replacements
+```
+
+**`apply_replacements(test_cases: dict, replacements: dict) -> dict`**
+```python
+def apply_replacements(test_cases: dict, replacements: dict) -> dict:
+    """
+    Apply variable replacements to test cases recursively.
+
+    - ENVIRONMENT: Replaced with SPRING_PROFILES_ACTIVE (default: 'gcpqa')
+    - Custom variables: Replaced with values from --replace
+    """
+    environment = os.environ.get("SPRING_PROFILES_ACTIVE", "gcpqa")
+    all_replacements = {"ENVIRONMENT": environment}
+    all_replacements.update(replacements)
+
+    # Recursive replacement in dicts, lists, and strings
+```
+
+**`get_output_dir(cli_output_dir: str = None) -> str`**
+```python
+def get_output_dir(cli_output_dir: str = None) -> str:
+    """
+    Get output directory from CLI argument, environment variable, or default.
+
+    Priority:
+    1. CLI argument (--output-dir)
+    2. Environment variable (DATAQE_OUTPUT_DIR)
+    3. Default (./output)
+    """
+    if cli_output_dir:
+        return cli_output_dir
+    return os.environ.get("DATAQE_OUTPUT_DIR", "./output")
+```
+
+### Updated Functions in cli.py
+
+**`load_test_cases(script_path: str, replacements: dict = None)`**
+- Now accepts optional `replacements` parameter
+- Applies replacements to loaded test cases before returning
+
+**`execute_block(block_name: str, block_config: dict, config_path: str, output_dir: str, replacements: dict = None)`**
+- Now accepts optional `replacements` parameter
+- Passes replacements to `load_test_cases()`
+
+**`main()` function**
+- Added `--replace` argument with action="append" for multiple replacements
+- Added `--output-dir` argument for custom output directory
+- Parses replacements using `parse_replacements()`
+- Logs variable replacements being applied
+- Passes replacements to `execute_block()`
+
+### Example Usage
+
+**Test Script with Variables:**
+```yaml
+- test_employer_validation:
+    source:
+      query: |
+        SELECT COUNT(*) as value
+        FROM MySQL_ENVIRONMENT.employer_data
+        WHERE employer_id = @employerID
+        AND region = @region
+```
+
+**Command Execution:**
+```bash
+export SPRING_PROFILES_ACTIVE=staging
+dataqe-run --config config.yml \
+  --output-dir /reports/staging \
+  --replace "@employerID,123" \
+  --replace "@region,US_WEST"
+```
+
+**Results in Query:**
+```sql
+SELECT COUNT(*) as value
+FROM MySQL_staging.employer_data
+WHERE employer_id = 123
+AND region = US_WEST
+```
+
+### Files Modified
+
+**src/dataqe_framework/cli.py**
+- Added `parse_replacements()` function
+- Added `apply_replacements()` function
+- Updated `get_output_dir()` to accept CLI argument
+- Updated `load_test_cases()` to apply replacements
+- Updated `execute_block()` to pass replacements
+- Updated `main()` with `--replace` and `--output-dir` arguments
+- Fixed path resolution for validation scripts and preprocessor queries
+
+**pyproject.toml**
+- Version bumped to 0.2.8
+
+### Benefits
+
+- 🔄 **Dynamic Configuration**: Run same tests with different values
+- 📁 **Output Control**: Specify output directory without environment variables
+- 🌍 **Environment Variables**: Auto-replace ENVIRONMENT from SPRING_PROFILES_ACTIVE
+- 🔗 **Path Flexibility**: Validation scripts resolved from current working directory
+- 🎯 **Multiple Replacements**: Support unlimited variable replacements
+- ✅ **Backward Compatible**: All existing configurations work unchanged
+
+### Backward Compatibility
+
+✅ **Fully backward compatible** - all features are optional:
+- Variable replacement only applies if `--replace` arguments provided
+- Output directory defaults to `./output` if not specified
+- ENVIRONMENT automatically replaced even without explicit configuration
+- Path resolution improved but works with both old and new style paths
+
+---
+
+## Version 0.2.7 - Multi-Block Configuration Support
 
 ### Overview
 
@@ -338,8 +536,8 @@ profile = CredentialsExtractor.get_profile()  # Returns: MYLOCAL, gcpqa, gcpprep
 config = cfg.Config('service_config_file', [profile])
 
 # Extract credentials
-mysql_creds = CredentialsExtractor.extract_mysql_config(config, 'ventana')
-bq_config = CredentialsExtractor.extract_bigquery_config(config, 'myproject', 'ventana')
+mysql_creds = CredentialsExtractor.extract_mysql_config(config, 'mysql')
+bq_config = CredentialsExtractor.extract_bigquery_config(config, 'myproject', 'mysql')
 sa_key = CredentialsExtractor.extract_service_account(config, 'dataqe-sa')
 
 # Create connectors with extracted credentials
@@ -374,12 +572,12 @@ database:
     db_port: 3306
     db_user: root
     db_password: password
-    db_name: ventana
+    db_name: mysql
 
   target:
     database_type: gcpbq
     project_id: my-project-dev
-    dataset_id: ventana
+    dataset_id: mysql
     credentials_path: ./config/service_account.json
     location: us-central1
 ```
@@ -389,15 +587,15 @@ database:
 External configuration library provides:
 
 ```
-config_details.data['mysql']['ventana'] = {
+config_details.data['mysql']['mysql'] = {
     'db_host': 'mysql.gcpqa.internal',
     'db_port': 3306,
     'db_user': 'db_user',
     'db_password': 'encrypted_password',
-    'db_name': 'ventana'
+    'db_name': 'mysql'
 }
 
-config_details.data['bigquery']['myproject']['datasets']['ventana'] = {
+config_details.data['bigquery']['myproject']['datasets']['mysql'] = {
     'project_id': 'my-project-qa',
     'location': 'us-central1'
 }
@@ -448,7 +646,7 @@ profile = CredentialsExtractor.get_profile()
 config = cfg.Config('service_config_file', [profile])
 
 # MySQL connection
-mysql_creds = CredentialsExtractor.extract_mysql_config(config, 'ventana')
+mysql_creds = CredentialsExtractor.extract_mysql_config(config, 'mysql')
 mysql = MySQLConnector(
     host=mysql_creds['host'],
     port=mysql_creds['port'],
@@ -461,7 +659,7 @@ source_data = mysql.execute_query("SELECT * FROM your_table")
 mysql.close()
 
 # BigQuery connection
-bq_config = CredentialsExtractor.extract_bigquery_config(config, 'myproject', 'ventana')
+bq_config = CredentialsExtractor.extract_bigquery_config(config, 'myproject', 'mysql')
 sa_key = CredentialsExtractor.extract_service_account(config, 'dataqe-sa')
 creds_path = CredentialsExtractor.save_service_account_json(sa_key, '/tmp/gcp_creds.json')
 bq_config['credentials_path'] = creds_path
@@ -477,8 +675,8 @@ bq.close()
 ### MySQL Connector Logs
 
 ```
-MySQLConnector - INFO - 2024-01-15 10:30:45 - MySQLConnector initialized for host=localhost, database=ventana
-MySQLConnector - INFO - 2024-01-15 10:30:46 - Establishing MySQL connection to localhost:3306/ventana
+MySQLConnector - INFO - 2024-01-15 10:30:45 - MySQLConnector initialized for host=localhost, database=mysql
+MySQLConnector - INFO - 2024-01-15 10:30:46 - Establishing MySQL connection to localhost:3306/mysql
 MySQLConnector - INFO - 2024-01-15 10:30:46 - MySQL connection established successfully
 MySQLConnector - DEBUG - 2024-01-15 10:30:47 - Executing query: SELECT * FROM your_table
 MySQLConnector - INFO - 2024-01-15 10:30:47 - Query executed successfully, returned 42 rows
@@ -496,8 +694,8 @@ BigQueryConnector - INFO - 2024-01-15 10:31:01 - KMS encryption configured for P
 
 ```
 CredentialsExtractor - INFO - Execution profile: gcpqa
-CredentialsExtractor - INFO - MySQL config extracted for database: ventana
-CredentialsExtractor - INFO - BigQuery config extracted for project: myproject, dataset: ventana
+CredentialsExtractor - INFO - MySQL config extracted for database: mysql
+CredentialsExtractor - INFO - BigQuery config extracted for project: myproject, dataset: mysql
 CredentialsExtractor - INFO - Service account credentials extracted: dataqe-sa
 CredentialsExtractor - INFO - Service account credentials saved to: /tmp/gcp_creds.json
 ```
@@ -554,7 +752,7 @@ print(f"Current profile: {profile}")
 ```python
 from dataqe_framework.connectors.mysql_connector import MySQLConnector
 
-mysql = MySQLConnector('localhost', 3306, 'root', 'password', 'ventana')
+mysql = MySQLConnector('localhost', 3306, 'root', 'password', 'mysql')
 mysql.connect()
 print("MySQL connection successful")
 mysql.close()
@@ -567,7 +765,7 @@ from dataqe_framework.connectors.bigquery_connector import BigQueryConnector
 
 config = {
     'project_id': 'my-project',
-    'dataset_id': 'ventana',
+    'dataset_id': 'mysql',
     'credentials_path': './config/service_account.json',
     'location': 'us-central1'
 }

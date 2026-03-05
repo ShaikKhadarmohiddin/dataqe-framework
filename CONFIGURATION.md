@@ -527,7 +527,7 @@ config_block_phi_validation:
   source:
     database_type: gcpbq
     gcp:
-      project_id: prj-eng-p-phi-bq-4a3c
+      project_id: BQ-PROJECT
       dataset_id: patient_data
       credentials_path: /secure/credentials.json
       use_encryption: true
@@ -538,7 +538,7 @@ config_block_phi_validation:
   target:
     database_type: gcpbq
     gcp:
-      project_id: prj-eng-p-phi-bq-4a3c
+      project_id: BQ-PROJECT
       dataset_id: patient_data_backup
       credentials_path: /secure/credentials.json
       use_encryption: true
@@ -563,6 +563,149 @@ python -c "import yaml; yaml.safe_load(open('config.yml'))"
 # Try loading configuration
 dataqe-run --config config.yml
 ```
+
+## Variable Replacement in Test Scripts
+
+The framework supports dynamic variable replacement in test scripts, allowing you to run the same test suite with different values without modifying configuration files.
+
+### Automatic ENVIRONMENT Variable
+
+The `ENVIRONMENT` variable is automatically replaced with the value of the `SPRING_PROFILES_ACTIVE` environment variable (defaults to `gcpqa`):
+
+**Example Test Script:**
+```yaml
+- test_insurance_companies:
+    severity: critical
+    source:
+      query: |
+        SELECT COUNT(1) as value
+        FROM MySQL_ENVIRONMENT.insurance_companies
+```
+
+**With ENVIRONMENT Replacement:**
+```bash
+# Uses default 'gcpqa'
+dataqe-run --config config.yml
+
+# Use custom environment
+export SPRING_PROFILES_ACTIVE=production
+dataqe-run --config config.yml
+```
+
+**Results in query:**
+```sql
+-- With default:
+SELECT COUNT(1) as value FROM mysql_gcpqa.insurance_companies
+
+-- With production:
+SELECT COUNT(1) as value FROM mysql_production.insurance_companies
+```
+
+### Custom Variable Replacement
+
+Replace custom variables using the `--replace` CLI option:
+
+**Syntax:**
+```bash
+--replace "variable_name,value"
+--replace "@variable_name,value"
+```
+
+Both `variable_name` and `@variable_name` formats are supported.
+
+**Example Test Script:**
+```yaml
+- test_by_employer:
+    severity: high
+    source:
+      query: |
+        SELECT COUNT(*) as value
+        FROM insurance_companies
+        WHERE employer_id = @employerID
+```
+
+**Command Line Usage:**
+```bash
+# Single replacement
+dataqe-run --config config.yml --replace "@employerID,5"
+
+# Multiple replacements
+dataqe-run --config config.yml \
+  --replace "@employerID,5" \
+  --replace "@storeID,10" \
+  --replace "status,active"
+
+# Combined with block execution
+dataqe-run --config config.yml --block validation_qa --replace "@employerID,123"
+
+# Combined with output directory
+dataqe-run --config config.yml \
+  --output-dir /custom/output \
+  --replace "@employerID,5" \
+  --replace "@storeID,10"
+```
+
+**Results in query:**
+```sql
+-- Original:
+SELECT COUNT(*) as value FROM insurance_companies WHERE employer_id = @employerID
+
+-- After replacement with @employerID,5:
+SELECT COUNT(*) as value FROM insurance_companies WHERE employer_id = 5
+```
+
+### Complex Variable Example
+
+Combining ENVIRONMENT and custom variables:
+
+**Test Script:**
+```yaml
+- test_employer_data:
+    source:
+      query: |
+        SELECT COUNT(*) as value
+        FROM MYSQL.employer_data
+        WHERE employer_id = @employerID
+        AND region = @region
+    target:
+      query: |
+        SELECT COUNT(*) as value
+        FROM `BQ-PROJECT`.warehouse_ENVIRONMENT.employer_data
+        WHERE employer_id = @employerID
+        AND region = @region
+```
+
+**Command Execution:**
+```bash
+export SPRING_PROFILES_ACTIVE=staging
+dataqe-run --config config.yml \
+  --replace "@employerID,123" \
+  --replace "@region,US_WEST"
+```
+
+**Results in:**
+```sql
+-- Source:
+SELECT COUNT(*) as value
+FROM mysql_staging.employer_data
+WHERE employer_id = 123
+AND region = US_WEST
+
+-- Target:
+SELECT COUNT(*) as value
+FROM `BQ-PROJECT`.warehouse_staging.employer_data
+WHERE employer_id = 123
+AND region = US_WEST
+```
+
+### Variable Replacement Rules
+
+1. **ENVIRONMENT** - Always replaced with `SPRING_PROFILES_ACTIVE` env var (default: `gcpqa`)
+2. **Custom variables** - Replaced only if provided via `--replace` argument
+3. **Both formats work** - `VARIABLE` or `@VARIABLE` (@ is optional)
+4. **Recursive replacement** - Works in nested dictionaries, lists, and all string values in test scripts
+5. **Order doesn't matter** - Multiple `--replace` arguments can be in any order
+6. **Case-sensitive** - Variable names are case-sensitive
 
 ## Troubleshooting
 

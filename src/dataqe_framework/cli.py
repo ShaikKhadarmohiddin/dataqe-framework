@@ -27,16 +27,123 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def load_test_cases(script_path: str):
+def parse_replacements(replace_args: list) -> dict:
+    """
+    Parse replacement arguments from command line.
+
+    Format: --replace "var1,value1" --replace "var2,value2"
+    Or:     --replace "@var1,value1" --replace "@var2,value2"
+
+    Args:
+        replace_args: List of replacement strings from argparse
+
+    Returns:
+        dict: Mapping of variable name to replacement value
+
+    Raises:
+        ValueError: If replacement format is invalid
+    """
+    replacements = {}
+    if not replace_args:
+        return replacements
+
+    for arg in replace_args:
+        parts = arg.split(",", 1)
+        if len(parts) != 2:
+            raise ValueError(
+                f"Invalid replacement format: '{arg}'. "
+                f"Expected format: 'variable,value' or '@variable,value'"
+            )
+
+        var_name, var_value = parts
+        # Remove @ prefix if present
+        if var_name.startswith("@"):
+            var_name = var_name[1:]
+
+        replacements[var_name] = var_value
+
+    return replacements
+
+
+def apply_replacements(test_cases: dict, replacements: dict) -> dict:
+    """
+    Apply variable replacements to test cases recursively.
+
+    Replaces:
+    - ENVIRONMENT with SPRING_PROFILES_ACTIVE env var (default: 'gcpqa')
+    - Custom variables with format: variable_name or @variable_name
+
+    Args:
+        test_cases: Test cases dictionary loaded from YAML
+        replacements: Dictionary of variable -> value replacements
+
+    Returns:
+        dict: Test cases with variables replaced
+    """
+    # Get ENVIRONMENT replacement (default to 'gcpqa')
+    environment = os.environ.get("SPRING_PROFILES_ACTIVE", "gcpqa")
+    all_replacements = {"ENVIRONMENT": environment}
+    all_replacements.update(replacements)
+
+    def replace_in_dict(obj):
+        """Recursively replace variables in dictionaries and strings."""
+        if isinstance(obj, dict):
+            return {k: replace_in_dict(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [replace_in_dict(item) for item in obj]
+        elif isinstance(obj, str):
+            result = obj
+            for var_name, var_value in all_replacements.items():
+                # Replace both VARIABLE and @VARIABLE formats
+                result = result.replace(var_name, str(var_value))
+                result = result.replace(f"@{var_name}", str(var_value))
+            return result
+        else:
+            return obj
+
+    return replace_in_dict(test_cases)
+
+
+def load_test_cases(script_path: str, replacements: dict = None):
+    """
+    Load test cases from YAML file and apply variable replacements.
+
+    Args:
+        script_path: Path to test script YAML file
+        replacements: Optional dictionary of variables to replace
+
+    Returns:
+        dict: Test cases with replacements applied
+    """
     if not os.path.exists(script_path):
         raise FileNotFoundError(f"Test script not found: {script_path}")
 
     with open(script_path, "r") as file:
-        return yaml.safe_load(file)
+        test_cases = yaml.safe_load(file)
+
+    if replacements is None:
+        replacements = {}
+
+    return apply_replacements(test_cases, replacements)
 
 
-def get_output_dir() -> str:
-    """Get output directory from environment or use default."""
+def get_output_dir(cli_output_dir: str = None) -> str:
+    """
+    Get output directory from CLI argument, environment variable, or default.
+
+    Priority order:
+    1. CLI argument (--output-dir)
+    2. Environment variable (DATAQE_OUTPUT_DIR)
+    3. Default (./output)
+
+    Args:
+        cli_output_dir: Output directory from CLI argument
+
+    Returns:
+        str: Path to output directory
+    """
+    if cli_output_dir:
+        return cli_output_dir
     return os.environ.get("DATAQE_OUTPUT_DIR", "./output")
 
 
@@ -170,7 +277,7 @@ def get_first_block(full_config: dict) -> tuple:
     return (first_name, blocks[first_name])
 
 
-def execute_block(block_name: str, block_config: dict, config_path: str, output_dir: str) -> list:
+def execute_block(block_name: str, block_config: dict, config_path: str, output_dir: str, replacements: dict = None) -> list:
     """
     Execute a single configuration block.
 
@@ -179,6 +286,7 @@ def execute_block(block_name: str, block_config: dict, config_path: str, output_
         block_config: Configuration for this block
         config_path: Path to the config file (for resolving relative paths)
         output_dir: Output directory for reports
+        replacements: Optional dictionary of variables to replace in test cases
 
     Returns:
         list: List of test results from the executor
@@ -186,12 +294,17 @@ def execute_block(block_name: str, block_config: dict, config_path: str, output_
     # Extract validation script path
     validation_script = block_config["other"]["validation_script"]
 
-    # If script is relative, resolve it relative to config file location
-    config_dir = os.path.dirname(config_path)
-    script_path = os.path.join(config_dir, validation_script)
+    # Resolve validation script path:
+    # - If absolute, use as-is
+    # - If relative, resolve from current working directory
+    if os.path.isabs(validation_script):
+        script_path = validation_script
+    else:
+        script_path = os.path.abspath(validation_script)
+
     script_name = os.path.basename(script_path)
 
-    test_cases = load_test_cases(script_path)
+    test_cases = load_test_cases(script_path, replacements)
 
     # Extract source and target configurations
     source_config = block_config.get("source")
@@ -201,9 +314,9 @@ def execute_block(block_name: str, block_config: dict, config_path: str, output_
     preprocessor_queries_path = block_config["other"].get("preprocessor_queries")
 
     if preprocessor_queries_path:
-        # Resolve relative path if needed
+        # Resolve relative path from current working directory if not absolute
         if not os.path.isabs(preprocessor_queries_path):
-            preprocessor_queries_path = os.path.join(config_dir, preprocessor_queries_path)
+            preprocessor_queries_path = os.path.abspath(preprocessor_queries_path)
 
     # Execute tests with timing
     logger.info(f"Starting execution of block: {block_name} (script: {script_name})")
@@ -226,6 +339,18 @@ def main():
     parser = argparse.ArgumentParser(description="DataQE Framework - Data Quality and Validation Tool")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--config", required=True, help="Path to configuration YAML file")
+    parser.add_argument(
+        "--output-dir",
+        help="Output directory for reports (default: ./output or DATAQE_OUTPUT_DIR env var)"
+    )
+    parser.add_argument(
+        "--replace",
+        action="append",
+        dest="replace",
+        help="Replace variables in test scripts (format: variable,value or @variable,value). "
+             "ENVIRONMENT is automatically set to SPRING_PROFILES_ACTIVE env var (default: gcpqa). "
+             "Can be used multiple times: --replace var1,value1 --replace var2,value2"
+    )
 
     # Add mutually exclusive group for block selection
     block_group = parser.add_mutually_exclusive_group()
@@ -241,8 +366,13 @@ def main():
 
     args = parser.parse_args()
 
+    # Parse variable replacements
+    replacements = parse_replacements(args.replace or [])
+    if replacements:
+        logger.info(f"Variable replacements: {', '.join(f'{k}={v}' for k, v in replacements.items())}")
+
     # Get output directory, create if needed, and clean it
-    output_dir = get_output_dir()
+    output_dir = get_output_dir(args.output_dir)
     ensure_output_directory(output_dir)
     clean_output_directory(output_dir)
 
@@ -275,7 +405,7 @@ def main():
     # Execute all selected blocks and collect results
     all_results = []
     for block_name, block_config in blocks_to_execute:
-        results = execute_block(block_name, block_config, args.config, output_dir)
+        results = execute_block(block_name, block_config, args.config, output_dir, replacements)
         all_results.extend(results)
 
     # Generate execution summary
