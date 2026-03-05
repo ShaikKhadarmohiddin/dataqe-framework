@@ -22,6 +22,10 @@ class QueryPreprocessor:
         Args:
             preprocessor_queries_path: Path to preprocessor_queries.yml file.
             preprocessor_config: Configuration dict with config_query_key and other settings.
+
+        Raises:
+            FileNotFoundError: If preprocessor_queries_path is provided but file doesn't exist
+            RuntimeError: If YAML file is invalid or cannot be parsed
         """
         self.preprocessor_queries_path = preprocessor_queries_path
         self.preprocessor_config = preprocessor_config or {}
@@ -35,10 +39,11 @@ class QueryPreprocessor:
     def _load_preprocessor_queries(self) -> None:
         """Load preprocessor queries from YAML file."""
         if not os.path.exists(self.preprocessor_queries_path):
-            logger.warning(
-                f"Preprocessor queries file not found: {self.preprocessor_queries_path}"
+            raise FileNotFoundError(
+                f"Preprocessor queries file not found: {self.preprocessor_queries_path}\n"
+                f"Please ensure the file exists at the specified path.\n"
+                f"Expected format: YAML file with preprocessor query definitions."
             )
-            return
 
         try:
             with open(self.preprocessor_queries_path, "r") as file:
@@ -46,9 +51,14 @@ class QueryPreprocessor:
             logger.info(
                 f"Loaded preprocessor queries from: {self.preprocessor_queries_path}"
             )
+        except FileNotFoundError:
+            raise
         except Exception as e:
             logger.error(f"Failed to load preprocessor queries: {str(e)}")
-            raise
+            raise RuntimeError(
+                f"Error loading preprocessor queries from {self.preprocessor_queries_path}:\n"
+                f"{type(e).__name__}: {str(e)}"
+            )
 
     def get_dataset_mappings(
         self, config_query_key: str, connector: Any

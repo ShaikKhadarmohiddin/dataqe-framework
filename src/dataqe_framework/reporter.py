@@ -23,6 +23,8 @@ class ExecutionSummary:
         self.passed = sum(1 for r in results if r["status"] == "PASS")
         self.failed = sum(1 for r in results if r["status"] == "FAIL")
         self.invalid = sum(1 for r in results if r["status"] == "INVALID")
+        self.error = sum(1 for r in results if r["status"] == "ERROR")
+        self.skipped = sum(1 for r in results if r["status"] == "SKIPPED")
         self.critical_failed = sum(
             1 for r in results
             if r["status"] == "FAIL" and r.get("severity", "").lower() == "critical"
@@ -88,7 +90,16 @@ class ConsoleReporter:
         summary = ExecutionSummary([result])
         formatted_time = summary.format_duration(execution_time_ms)
 
-        self.logger.info(f"Test: {test_name} - Status: {status} (Execution time: {formatted_time})")
+        message = f"Test: {test_name} - Status: {status} (Execution time: {formatted_time})"
+
+        # Append detailed error message if present
+        if result.get("error_occurred"):
+            error_type = result.get("error_type", "Unknown")
+            error_msg = result.get("error_message", "Unknown")
+            message += f"\n  └─ ERROR: {error_type} - {error_msg}"
+            self.logger.error(message)
+        else:
+            self.logger.info(message)
 
     def report_summary(self, summary: ExecutionSummary) -> None:
         """
@@ -103,7 +114,9 @@ class ConsoleReporter:
         self.logger.info(f"Total Test Cases: {summary.total_tests}")
         self.logger.info(f"Passed: {summary.passed} ({summary.pass_percentage():.1f}%)")
         self.logger.info(f"Failed: {summary.failed} ({summary.fail_percentage():.1f}%)")
+        self.logger.info(f"Errors: {summary.error}")
         self.logger.info(f"Invalid: {summary.invalid}")
+        self.logger.info(f"Skipped: {summary.skipped}")
 
         formatted_time = summary.format_duration(summary.total_execution_time_ms)
         self.logger.info(f"Total Execution Time: {formatted_time}")
@@ -150,6 +163,17 @@ class HTMLReporter:
         for result in results:
             status_class = self._get_status_class(result["status"])
             execution_time = summary.format_duration(result.get("execution_time_ms", 0))
+
+            # Build error message display if error occurred
+            error_display = ""
+            if result.get("error_occurred"):
+                error_type = result.get("error_type", "Unknown")
+                error_msg = result.get("error_message", "Unknown")
+                # Truncate long error messages for display
+                if len(error_msg) > 100:
+                    error_msg = error_msg[:97] + "..."
+                error_display = f"<br/><small style='color: #c0392b; font-weight: bold;'>{error_type}: {error_msg}</small>"
+
             rows.append(
                 f"""
                 <tr class="{status_class}">
@@ -157,7 +181,7 @@ class HTMLReporter:
                     <td>{result.get('severity', 'N/A')}</td>
                     <td>{self._safe_str(result.get('source_value'))}</td>
                     <td>{self._safe_str(result.get('target_value'))}</td>
-                    <td>{result['status']}</td>
+                    <td>{result['status']}{error_display}</td>
                     <td>{execution_time}</td>
                 </tr>
                 """
@@ -229,6 +253,12 @@ class HTMLReporter:
         tr.invalid {{
             background-color: #f4ecf7;
         }}
+        tr.error {{
+            background-color: #fef5e7;
+        }}
+        tr.skipped {{
+            background-color: #d5d8dc;
+        }}
         tr:hover {{
             background-color: #ecf0f1;
         }}
@@ -254,8 +284,16 @@ class HTMLReporter:
             <div class="value">{summary.failed} ({summary.fail_percentage():.1f}%)</div>
         </div>
         <div class="summary-card">
+            <h3>Errors</h3>
+            <div class="value">{summary.error}</div>
+        </div>
+        <div class="summary-card">
             <h3>Invalid</h3>
             <div class="value">{summary.invalid}</div>
+        </div>
+        <div class="summary-card">
+            <h3>Skipped</h3>
+            <div class="value">{summary.skipped}</div>
         </div>
     </div>
 
@@ -283,7 +321,9 @@ class HTMLReporter:
         status_map = {
             "PASS": "pass",
             "FAIL": "fail",
-            "INVALID": "invalid"
+            "INVALID": "invalid",
+            "ERROR": "error",
+            "SKIPPED": "skipped"
         }
         return status_map.get(status, "invalid")
 
@@ -331,6 +371,8 @@ class CSVReporter:
                 "Source Value",
                 "Target Value",
                 "Status",
+                "Error Type",
+                "Error Message",
                 "Execution Time (ms)",
                 "Source Query Time (ms)",
                 "Target Query Time (ms)",
@@ -339,12 +381,23 @@ class CSVReporter:
 
             # Write test results
             for result in results:
+                # Create status with error details if applicable
+                status_display = result["status"]
+                error_type_display = ""
+                error_msg_display = ""
+
+                if result.get("error_occurred"):
+                    error_type_display = result.get("error_type", "Unknown")
+                    error_msg_display = result.get("error_message", "Unknown")
+
                 writer.writerow([
                     result["test_name"],
                     result.get("severity", "N/A"),
-                    result.get("source_value"),
-                    result.get("target_value"),
-                    result["status"],
+                    result.get("source_value", ""),
+                    result.get("target_value", ""),
+                    status_display,
+                    error_type_display,
+                    error_msg_display,
                     f"{result.get('execution_time_ms', 0):.2f}",
                     f"{result.get('source_query_time_ms', 0):.2f}",
                     f"{result.get('target_query_time_ms', 0):.2f}",
@@ -357,7 +410,9 @@ class CSVReporter:
             writer.writerow(["Total Tests", summary.total_tests])
             writer.writerow(["Passed", summary.passed, f"{summary.pass_percentage():.1f}%"])
             writer.writerow(["Failed", summary.failed, f"{summary.fail_percentage():.1f}%"])
+            writer.writerow(["Errors", summary.error])
             writer.writerow(["Invalid", summary.invalid])
+            writer.writerow(["Skipped", summary.skipped])
             writer.writerow(["Total Execution Time (ms)", f"{summary.total_execution_time_ms:.2f}"])
 
         return str(filepath)
@@ -471,11 +526,13 @@ class FailedExecutionReporter:
         filename = "FailedExecutionReport.html"
         filepath = self.output_dir / filename
 
-        # Filter failed tests
+        # Filter failed and error tests
         failed_tests = [r for r in results if r["status"] == "FAIL"]
+        error_tests = [r for r in results if r["status"] == "ERROR"]
+        all_problem_tests = failed_tests + error_tests
 
-        if failed_tests:
-            html_content = self._build_failed_tests_html(failed_tests, summary)
+        if all_problem_tests:
+            html_content = self._build_failed_tests_html(all_problem_tests, summary)
         else:
             html_content = self._build_all_passed_html(summary)
 
@@ -489,14 +546,26 @@ class FailedExecutionReporter:
         rows = []
         for result in failed_tests:
             execution_time = summary.format_duration(result.get("execution_time_ms", 0))
+            status_class = "fail" if result["status"] == "FAIL" else "error"
+
+            # Build error message display if error occurred
+            error_display = ""
+            if result.get("error_occurred"):
+                error_type = result.get("error_type", "Unknown")
+                error_msg = result.get("error_message", "Unknown")
+                # Truncate long error messages for display
+                if len(error_msg) > 100:
+                    error_msg = error_msg[:97] + "..."
+                error_display = f"<br/><small style='color: #c0392b; font-weight: bold;'>{error_type}: {error_msg}</small>"
+
             rows.append(
                 f"""
-                <tr class="fail">
+                <tr class="{status_class}">
                     <td>{result['test_name']}</td>
                     <td>{result.get('severity', 'N/A')}</td>
                     <td>{self._safe_str(result.get('source_value'))}</td>
                     <td>{self._safe_str(result.get('target_value'))}</td>
-                    <td>{result['status']}</td>
+                    <td>{result['status']}{error_display}</td>
                     <td>{execution_time}</td>
                 </tr>
                 """
@@ -562,6 +631,9 @@ class FailedExecutionReporter:
         tr.fail {{
             background-color: #fadbd8;
         }}
+        tr.error {{
+            background-color: #fef5e7;
+        }}
         tr:hover {{
             background-color: #f5b7b1;
         }}
@@ -571,7 +643,7 @@ class FailedExecutionReporter:
     <div class="header">
         <h1>⚠️ Failed Test Execution Report</h1>
         <p>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-        <p>Total Failed Tests: <strong>{len(failed_tests)}</strong></p>
+        <p>Total Problem Tests: <strong>{len(failed_tests)}</strong></p>
     </div>
 
     <div class="summary">
@@ -588,8 +660,16 @@ class FailedExecutionReporter:
             <div class="value">{summary.failed}</div>
         </div>
         <div class="summary-card">
+            <h3>Errors</h3>
+            <div class="value">{summary.error}</div>
+        </div>
+        <div class="summary-card">
             <h3>Invalid</h3>
             <div class="value">{summary.invalid}</div>
+        </div>
+        <div class="summary-card">
+            <h3>Skipped</h3>
+            <div class="value">{summary.skipped}</div>
         </div>
     </div>
 

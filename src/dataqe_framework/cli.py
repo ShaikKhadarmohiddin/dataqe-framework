@@ -277,7 +277,82 @@ def get_first_block(full_config: dict) -> tuple:
     return (first_name, blocks[first_name])
 
 
-def execute_block(block_name: str, block_config: dict, config_path: str, output_dir: str, replacements: dict = None) -> list:
+def save_invalid_tests(output_dir: str, failed_test_names: list) -> str:
+    """
+    Save list of failed/errored test names to .dataqe_invalid_tests.yml.
+
+    Args:
+        output_dir: Output directory to save the file
+        failed_test_names: List of test names that failed
+
+    Returns:
+        str: Path to saved file
+    """
+    if not failed_test_names:
+        return None
+
+    filepath = Path(output_dir) / ".dataqe_invalid_tests.yml"
+
+    invalid_list = {"invalid_tests": failed_test_names}
+
+    with open(filepath, "w") as f:
+        yaml.dump(invalid_list, f, default_flow_style=False)
+
+    logger.info(f"Saved {len(failed_test_names)} invalid tests to: {filepath}")
+    return str(filepath)
+
+
+def load_invalid_tests(output_dir: str) -> list:
+    """
+    Load list of invalid test names from .dataqe_invalid_tests.yml.
+
+    Args:
+        output_dir: Directory to look for the invalid tests file
+
+    Returns:
+        list: List of invalid test names, empty list if file doesn't exist
+    """
+    filepath = Path(output_dir) / ".dataqe_invalid_tests.yml"
+
+    if not filepath.exists():
+        return []
+
+    try:
+        with open(filepath, "r") as f:
+            data = yaml.safe_load(f)
+            invalid_tests = data.get("invalid_tests", []) if data else []
+            logger.info(f"Loaded {len(invalid_tests)} invalid tests from: {filepath}")
+            return invalid_tests
+    except Exception as e:
+        logger.warning(f"Error loading invalid tests file: {e}")
+        return []
+
+
+def filter_test_cases_by_invalid_list(test_cases: list, invalid_test_names: list) -> tuple:
+    """
+    Filter test cases to mark tests in the invalid list with 'invalid: true'.
+
+    Args:
+        test_cases: Original list of test case dictionaries
+        invalid_test_names: List of test names to mark as invalid
+
+    Returns:
+        tuple: (filtered_test_cases, count_of_marked_tests)
+    """
+    if not invalid_test_names:
+        return test_cases, 0
+
+    marked_count = 0
+    for test in test_cases:
+        test_name = list(test.keys())[0]
+        if test_name in invalid_test_names:
+            test[test_name]["invalid"] = True
+            marked_count += 1
+
+    return test_cases, marked_count
+
+
+def execute_block(block_name: str, block_config: dict, config_path: str, output_dir: str, replacements: dict = None, invalid_test_names: list = None, fail_on_error: bool = False) -> list:
     """
     Execute a single configuration block.
 
@@ -287,9 +362,14 @@ def execute_block(block_name: str, block_config: dict, config_path: str, output_
         config_path: Path to the config file (for resolving relative paths)
         output_dir: Output directory for reports
         replacements: Optional dictionary of variables to replace in test cases
+        invalid_test_names: Optional list of test names to mark as invalid (skip)
+        fail_on_error: If True, raise exception on query execution errors
 
     Returns:
         list: List of test results from the executor
+
+    Raises:
+        RuntimeError: If fail_on_error=True and a test encounters a query error
     """
     # Extract validation script path
     validation_script = block_config["other"]["validation_script"]
@@ -306,6 +386,11 @@ def execute_block(block_name: str, block_config: dict, config_path: str, output_
 
     test_cases = load_test_cases(script_path, replacements)
 
+    # Mark tests as invalid if they're in the invalid list
+    if invalid_test_names:
+        test_cases, marked_count = filter_test_cases_by_invalid_list(test_cases, invalid_test_names)
+        logger.info(f"Marked {marked_count} tests as invalid (will be skipped)")
+
     # Extract source and target configurations
     source_config = block_config.get("source")
     target_config = block_config.get("target")
@@ -317,6 +402,14 @@ def execute_block(block_name: str, block_config: dict, config_path: str, output_
         # Resolve relative path from current working directory if not absolute
         if not os.path.isabs(preprocessor_queries_path):
             preprocessor_queries_path = os.path.abspath(preprocessor_queries_path)
+
+        # Validate that preprocessor file exists
+        if not os.path.exists(preprocessor_queries_path):
+            raise FileNotFoundError(
+                f"Preprocessor queries file not found: {preprocessor_queries_path}\n"
+                f"Please ensure the file exists at the specified path.\n"
+                f"Config key: 'preprocessor_queries' in block '{block_name}'"
+            )
 
     # Execute tests with timing
     logger.info(f"Starting execution of block: {block_name} (script: {script_name})")
@@ -331,6 +424,19 @@ def execute_block(block_name: str, block_config: dict, config_path: str, output_
     # Add block_name to results for tracking
     for result in results:
         result["block_name"] = block_name
+
+    # Check for errors if fail_on_error is set
+    if fail_on_error:
+        error_results = [r for r in results if r.get("error_occurred", False)]
+        if error_results:
+            error_details = "\n".join(
+                f"  - {r['test_name']}: {r.get('error_type', 'Unknown')} - {r.get('error_message', 'Unknown')}"
+                for r in error_results
+            )
+            raise RuntimeError(
+                f"Query execution errors encountered in block '{block_name}':\n{error_details}\n"
+                f"Use --continue-on-error flag to skip this check."
+            )
 
     return results
 
@@ -364,6 +470,23 @@ def main():
         help="Execute all configuration blocks found in the config file"
     )
 
+    # Add error handling flags
+    parser.add_argument(
+        "--skip-invalid",
+        action="store_true",
+        help="Skip tests marked with 'invalid: true' in YAML"
+    )
+    parser.add_argument(
+        "--load-invalid-list",
+        action="store_true",
+        help="Load and skip tests from .dataqe_invalid_tests.yml (auto-generated from previous run errors)"
+    )
+    parser.add_argument(
+        "--fail-on-error",
+        action="store_true",
+        help="Exit immediately if any query execution error occurs (strict mode)"
+    )
+
     args = parser.parse_args()
 
     # Parse variable replacements
@@ -375,6 +498,13 @@ def main():
     output_dir = get_output_dir(args.output_dir)
     ensure_output_directory(output_dir)
     clean_output_directory(output_dir)
+
+    # Load invalid tests list if flag is set
+    invalid_test_names = []
+    if args.load_invalid_list:
+        invalid_test_names = load_invalid_tests(output_dir)
+        if invalid_test_names:
+            logger.info(f"Loaded {len(invalid_test_names)} invalid tests to skip")
 
     full_config = load_config(args.config)
 
@@ -405,7 +535,15 @@ def main():
     # Execute all selected blocks and collect results
     all_results = []
     for block_name, block_config in blocks_to_execute:
-        results = execute_block(block_name, block_config, args.config, output_dir, replacements)
+        results = execute_block(
+            block_name,
+            block_config,
+            args.config,
+            output_dir,
+            replacements=replacements,
+            invalid_test_names=invalid_test_names,
+            fail_on_error=args.fail_on_error
+        )
         all_results.extend(results)
 
     # Generate execution summary
@@ -448,4 +586,12 @@ def main():
         test_report_path=html_report_path
     )
     logger.info(f"AutomationData.csv generated: {automation_data_path}")
+
+    # Save list of tests with errors to .dataqe_invalid_tests.yml for next run
+    error_test_names = [r["test_name"] for r in all_results if r.get("error_occurred", False)]
+    if error_test_names:
+        invalid_tests_path = save_invalid_tests(output_dir, error_test_names)
+        logger.info(
+            f"Next run: Use --load-invalid-list flag to automatically skip these {len(error_test_names)} tests"
+        )
 
