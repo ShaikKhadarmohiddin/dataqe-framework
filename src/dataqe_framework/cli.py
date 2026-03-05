@@ -403,6 +403,14 @@ def execute_block(block_name: str, block_config: dict, config_path: str, output_
         if not os.path.isabs(preprocessor_queries_path):
             preprocessor_queries_path = os.path.abspath(preprocessor_queries_path)
 
+        # Validate that preprocessor file exists
+        if not os.path.exists(preprocessor_queries_path):
+            raise FileNotFoundError(
+                f"Preprocessor queries file not found: {preprocessor_queries_path}\n"
+                f"Please ensure the file exists at the specified path.\n"
+                f"Config key: 'preprocessor_queries' in block '{block_name}'"
+            )
+
     # Execute tests with timing
     logger.info(f"Starting execution of block: {block_name} (script: {script_name})")
     executor = ValidationExecutor(

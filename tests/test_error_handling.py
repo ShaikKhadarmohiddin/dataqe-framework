@@ -2,9 +2,12 @@
 Tests for error handling and invalid test marking features.
 """
 import unittest
+import tempfile
+import os
 from unittest.mock import MagicMock, patch
 from dataqe_framework.executor import ValidationExecutor, _should_skip_test
 from dataqe_framework.reporter import ExecutionSummary
+from dataqe_framework.preprocessor import QueryPreprocessor
 
 
 class TestShouldSkipTest(unittest.TestCase):
@@ -165,6 +168,49 @@ class TestValidationExecutorErrorHandling(unittest.TestCase):
         self.assertEqual(result["error_message"], "Invalid SQL syntax")
         self.assertIsNone(result["source_value"])
         self.assertIsNone(result["target_value"])
+
+
+class TestPreprocessorErrorHandling(unittest.TestCase):
+    """Test cases for preprocessor file validation."""
+
+    def test_missing_preprocessor_file_raises_error(self):
+        """Test that missing preprocessor file raises FileNotFoundError."""
+        nonexistent_path = "/nonexistent/path/preprocessor_queries.yml"
+        with self.assertRaises(FileNotFoundError) as context:
+            QueryPreprocessor(nonexistent_path, {})
+
+        # Check error message contains helpful information
+        error_msg = str(context.exception)
+        self.assertIn("not found", error_msg)
+        self.assertIn(nonexistent_path, error_msg)
+
+    def test_preprocessor_file_exists(self):
+        """Test that preprocessor loads successfully when file exists."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+            f.write("test_query: SELECT 1")
+            temp_file = f.name
+
+        try:
+            preprocessor = QueryPreprocessor(temp_file, {})
+            self.assertEqual(preprocessor.preprocessor_queries.get("test_query"), "SELECT 1")
+        finally:
+            os.unlink(temp_file)
+
+    def test_invalid_yaml_file_raises_error(self):
+        """Test that invalid YAML file raises RuntimeError."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+            # Write invalid YAML
+            f.write("invalid: : : yaml: content")
+            temp_file = f.name
+
+        try:
+            with self.assertRaises(RuntimeError) as context:
+                QueryPreprocessor(temp_file, {})
+
+            error_msg = str(context.exception)
+            self.assertIn("Error loading preprocessor queries", error_msg)
+        finally:
+            os.unlink(temp_file)
 
 
 if __name__ == "__main__":
