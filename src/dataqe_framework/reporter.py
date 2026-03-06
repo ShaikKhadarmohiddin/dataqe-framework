@@ -15,8 +15,10 @@ class ExecutionMetadata:
         self,
         config_file: str,
         config_blocks: List[str],
-        test_yaml_file: str,
-        execution_timestamp: Optional[datetime] = None
+        test_yaml_files: Optional[List[str]] = None,
+        suite_owners: Optional[List[str]] = None,
+        execution_timestamp: Optional[datetime] = None,
+        test_yaml_file: Optional[str] = None
     ):
         """
         Initialize execution metadata.
@@ -24,17 +26,44 @@ class ExecutionMetadata:
         Args:
             config_file: Path to configuration YAML file
             config_blocks: List of block names executed
-            test_yaml_file: Path to test cases YAML file
+            test_yaml_files: List of test cases YAML file paths (one per block)
+            suite_owners: List of suite owners (de-duplicated)
             execution_timestamp: When execution started (defaults to now)
+            test_yaml_file: Legacy single test file (for backward compatibility)
         """
         self.config_file = config_file
         self.config_blocks = config_blocks
-        self.test_yaml_file = test_yaml_file
+
+        # Handle both new (list) and legacy (single) test_yaml_file parameter
+        if test_yaml_files is None:
+            if test_yaml_file is not None:
+                test_yaml_files = [test_yaml_file]
+            else:
+                test_yaml_files = []
+        self.test_yaml_files = test_yaml_files if test_yaml_files else []
+
+        # De-duplicate suite owners while preserving order
+        self.suite_owners = list(dict.fromkeys(suite_owners)) if suite_owners else []
+
         self.execution_timestamp = execution_timestamp or datetime.now()
 
     def get_block_list(self) -> str:
         """Return comma-separated block names."""
         return ", ".join(self.config_blocks) if self.config_blocks else "N/A"
+
+    def get_test_scripts(self) -> str:
+        """Return comma-separated unique test script paths."""
+        if not self.test_yaml_files:
+            return "N/A"
+        # De-duplicate while preserving order
+        unique_files = list(dict.fromkeys(self.test_yaml_files))
+        return ", ".join(unique_files)
+
+    def get_suite_owners(self) -> str:
+        """Return comma-separated unique suite owners."""
+        if not self.suite_owners:
+            return "N/A"
+        return ", ".join(self.suite_owners)
 
     def get_timestamp_str(self) -> str:
         """Return formatted timestamp string (YYYY-MM-DD HH:MM:SS)."""
@@ -234,7 +263,8 @@ class HTMLReporter:
         <div class="metadata-content">
             <p><strong>Configuration File:</strong> {metadata.config_file}</p>
             <p><strong>Blocks Executed:</strong> {metadata.get_block_list()}</p>
-            <p><strong>Test Script:</strong> {metadata.test_yaml_file}</p>
+            <p><strong>Test Scripts:</strong> {metadata.get_test_scripts()}</p>
+            <p><strong>Suite Owners:</strong> {metadata.get_suite_owners()}</p>
             <p><strong>Execution Time:</strong> {metadata.get_timestamp_str()}</p>
         </div>
     </details>
@@ -505,7 +535,8 @@ class CSVReporter:
                 writer.writerow(["EXECUTION METADATA"])
                 writer.writerow(["Configuration File", metadata.config_file])
                 writer.writerow(["Blocks Executed", metadata.get_block_list()])
-                writer.writerow(["Test Script", metadata.test_yaml_file])
+                writer.writerow(["Test Scripts", metadata.get_test_scripts()])
+                writer.writerow(["Suite Owners", metadata.get_suite_owners()])
                 writer.writerow(["Execution Timestamp", metadata.get_timestamp_str()])
 
         return str(filepath)
@@ -676,7 +707,8 @@ class FailedExecutionReporter:
         <div class="metadata-content">
             <p><strong>Configuration File:</strong> {metadata.config_file}</p>
             <p><strong>Blocks Executed:</strong> {metadata.get_block_list()}</p>
-            <p><strong>Test Script:</strong> {metadata.test_yaml_file}</p>
+            <p><strong>Test Scripts:</strong> {metadata.get_test_scripts()}</p>
+            <p><strong>Suite Owners:</strong> {metadata.get_suite_owners()}</p>
             <p><strong>Execution Time:</strong> {metadata.get_timestamp_str()}</p>
         </div>
     </details>
@@ -844,7 +876,8 @@ class FailedExecutionReporter:
         <div class="metadata-content">
             <p><strong>Configuration File:</strong> {metadata.config_file}</p>
             <p><strong>Blocks Executed:</strong> {metadata.get_block_list()}</p>
-            <p><strong>Test Script:</strong> {metadata.test_yaml_file}</p>
+            <p><strong>Test Scripts:</strong> {metadata.get_test_scripts()}</p>
+            <p><strong>Suite Owners:</strong> {metadata.get_suite_owners()}</p>
             <p><strong>Execution Time:</strong> {metadata.get_timestamp_str()}</p>
         </div>
     </details>

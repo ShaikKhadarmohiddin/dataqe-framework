@@ -550,20 +550,28 @@ def main():
     # Capture execution metadata
     block_names = [name for name, _ in blocks_to_execute]
 
-    # Extract test YAML file from first block's validation_script
-    test_yaml_file = "N/A"
-    if blocks_to_execute:
-        first_block_config = blocks_to_execute[0][1]
-        test_yaml_file = first_block_config.get("other", {}).get("validation_script", "N/A")
-        # Resolve to absolute path if it's relative
-        if test_yaml_file != "N/A" and not os.path.isabs(test_yaml_file):
-            test_yaml_file = os.path.abspath(test_yaml_file)
+    # Extract test YAML files from ALL blocks
+    test_yaml_files = []
+    suite_owners_list = []
+
+    for block_name, block_config in blocks_to_execute:
+        # Get validation_script from this block
+        test_file = block_config.get("other", {}).get("validation_script", "N/A")
+        if test_file != "N/A" and not os.path.isabs(test_file):
+            test_file = os.path.abspath(test_file)
+        test_yaml_files.append(test_file)
+
+        # Get suite_owner from this block (if present)
+        suite_owner = block_config.get("other", {}).get("suite_owner")
+        if suite_owner:
+            suite_owners_list.append(suite_owner)
 
     # Create metadata instance
     metadata = ExecutionMetadata(
         config_file=args.config,
         config_blocks=block_names,
-        test_yaml_file=test_yaml_file,
+        test_yaml_files=test_yaml_files,
+        suite_owners=suite_owners_list,
         execution_timestamp=datetime.now()
     )
 
