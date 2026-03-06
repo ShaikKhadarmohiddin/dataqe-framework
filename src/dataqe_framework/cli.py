@@ -11,6 +11,7 @@ from dataqe_framework.executor import ValidationExecutor
 from dataqe_framework.config_loader import load_config
 from dataqe_framework.reporter import (
     ExecutionSummary,
+    ExecutionMetadata,
     ConsoleReporter,
     HTMLReporter,
     CSVReporter,
@@ -546,8 +547,28 @@ def main():
         )
         all_results.extend(results)
 
+    # Capture execution metadata
+    block_names = [name for name, _ in blocks_to_execute]
+
+    # Extract test YAML file from first block's validation_script
+    test_yaml_file = "N/A"
+    if blocks_to_execute:
+        first_block_config = blocks_to_execute[0][1]
+        test_yaml_file = first_block_config.get("other", {}).get("validation_script", "N/A")
+        # Resolve to absolute path if it's relative
+        if test_yaml_file != "N/A" and not os.path.isabs(test_yaml_file):
+            test_yaml_file = os.path.abspath(test_yaml_file)
+
+    # Create metadata instance
+    metadata = ExecutionMetadata(
+        config_file=args.config,
+        config_blocks=block_names,
+        test_yaml_file=test_yaml_file,
+        execution_timestamp=datetime.now()
+    )
+
     # Generate execution summary
-    summary = ExecutionSummary(all_results)
+    summary = ExecutionSummary(all_results, metadata)
 
     # Report to console
     console_reporter = ConsoleReporter()
@@ -557,16 +578,16 @@ def main():
 
     # Generate ExecutionReport.html and ExecutionReport.csv
     html_reporter = HTMLReporter(output_dir)
-    html_report_path = html_reporter.generate_report(all_results, summary)
+    html_report_path = html_reporter.generate_report(all_results, summary, metadata)
     logger.info(f"ExecutionReport.html generated: {html_report_path}")
 
     csv_reporter = CSVReporter(output_dir)
-    csv_report_path = csv_reporter.generate_report(all_results, summary)
+    csv_report_path = csv_reporter.generate_report(all_results, summary, metadata)
     logger.info(f"ExecutionReport.csv generated: {csv_report_path}")
 
     # Generate FailedExecutionReport.html (with failures or all-passed message)
     failed_reporter = FailedExecutionReporter(output_dir)
-    failed_report_path = failed_reporter.generate_report(all_results, summary)
+    failed_report_path = failed_reporter.generate_report(all_results, summary, metadata)
     logger.info(f"FailedExecutionReport.html generated: {failed_report_path}")
 
     # Generate AutomationData.csv for CI/CD integration

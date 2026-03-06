@@ -2,23 +2,58 @@ import logging
 import csv
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
 logger = logging.getLogger(__name__)
 
 
+class ExecutionMetadata:
+    """Stores and formats execution metadata for report identification."""
+
+    def __init__(
+        self,
+        config_file: str,
+        config_blocks: List[str],
+        test_yaml_file: str,
+        execution_timestamp: Optional[datetime] = None
+    ):
+        """
+        Initialize execution metadata.
+
+        Args:
+            config_file: Path to configuration YAML file
+            config_blocks: List of block names executed
+            test_yaml_file: Path to test cases YAML file
+            execution_timestamp: When execution started (defaults to now)
+        """
+        self.config_file = config_file
+        self.config_blocks = config_blocks
+        self.test_yaml_file = test_yaml_file
+        self.execution_timestamp = execution_timestamp or datetime.now()
+
+    def get_block_list(self) -> str:
+        """Return comma-separated block names."""
+        return ", ".join(self.config_blocks) if self.config_blocks else "N/A"
+
+    def get_timestamp_str(self) -> str:
+        """Return formatted timestamp string (YYYY-MM-DD HH:MM:SS)."""
+        return self.execution_timestamp.strftime('%Y-%m-%d %H:%M:%S')
+
+
 class ExecutionSummary:
     """Aggregates test execution results and calculates summary metrics."""
 
-    def __init__(self, results: List[Dict[str, Any]]):
+    def __init__(self, results: List[Dict[str, Any]], metadata: Optional['ExecutionMetadata'] = None):
         """
         Initialize summary with test results.
 
         Args:
             results: List of test result dictionaries from ValidationExecutor
+            metadata: Optional ExecutionMetadata instance with execution context
         """
         self.results = results
+        self.metadata = metadata
         self.total_tests = len(results)
         self.passed = sum(1 for r in results if r["status"] == "PASS")
         self.failed = sum(1 for r in results if r["status"] == "FAIL")
@@ -136,13 +171,14 @@ class HTMLReporter:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def generate_report(self, results: List[Dict[str, Any]], summary: ExecutionSummary) -> str:
+    def generate_report(self, results: List[Dict[str, Any]], summary: ExecutionSummary, metadata: Optional[ExecutionMetadata] = None) -> str:
         """
         Generate HTML report and save to file as ExecutionReport.html.
 
         Args:
             results: List of test results
             summary: ExecutionSummary instance
+            metadata: Optional ExecutionMetadata instance with execution context
 
         Returns:
             Path to generated HTML file
@@ -150,14 +186,14 @@ class HTMLReporter:
         filename = "ExecutionReport.html"
         filepath = self.output_dir / filename
 
-        html_content = self._build_html(results, summary)
+        html_content = self._build_html(results, summary, metadata)
 
         with open(filepath, "w") as f:
             f.write(html_content)
 
         return str(filepath)
 
-    def _build_html(self, results: List[Dict[str, Any]], summary: ExecutionSummary) -> str:
+    def _build_html(self, results: List[Dict[str, Any]], summary: ExecutionSummary, metadata: Optional[ExecutionMetadata] = None) -> str:
         """Build HTML content for the report."""
         rows = []
         for result in results:
@@ -189,6 +225,21 @@ class HTMLReporter:
 
         rows_html = "\n".join(rows)
 
+        # Build metadata section if available
+        metadata_html = ""
+        if metadata:
+            metadata_html = f"""
+    <details class="metadata-section">
+        <summary>📋 Execution Metadata (Click to expand)</summary>
+        <div class="metadata-content">
+            <p><strong>Configuration File:</strong> {metadata.config_file}</p>
+            <p><strong>Blocks Executed:</strong> {metadata.get_block_list()}</p>
+            <p><strong>Test Script:</strong> {metadata.test_yaml_file}</p>
+            <p><strong>Execution Time:</strong> {metadata.get_timestamp_str()}</p>
+        </div>
+    </details>
+"""
+
         return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -205,6 +256,36 @@ class HTMLReporter:
             padding: 20px;
             border-radius: 5px;
             margin-bottom: 20px;
+        }}
+        .metadata-section {{
+            background-color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3498db;
+        }}
+        .metadata-section summary {{
+            cursor: pointer;
+            font-weight: bold;
+            color: #2c3e50;
+            user-select: none;
+        }}
+        .metadata-section summary:hover {{
+            color: #3498db;
+        }}
+        .metadata-content {{
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #bdc3c7;
+        }}
+        .metadata-content p {{
+            margin: 8px 0;
+            line-height: 1.6;
+        }}
+        .metadata-content strong {{
+            color: #2c3e50;
+            min-width: 150px;
+            display: inline-block;
         }}
         .summary {{
             display: grid;
@@ -269,6 +350,8 @@ class HTMLReporter:
         <h1>Test Execution Report</h1>
         <p>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
     </div>
+
+    {metadata_html}
 
     <div class="summary">
         <div class="summary-card">
@@ -347,13 +430,14 @@ class CSVReporter:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def generate_report(self, results: List[Dict[str, Any]], summary: ExecutionSummary) -> str:
+    def generate_report(self, results: List[Dict[str, Any]], summary: ExecutionSummary, metadata: Optional[ExecutionMetadata] = None) -> str:
         """
         Generate CSV report and save to file as ExecutionReport.csv.
 
         Args:
             results: List of test results
             summary: ExecutionSummary instance
+            metadata: Optional ExecutionMetadata instance with execution context
 
         Returns:
             Path to generated CSV file
@@ -414,6 +498,15 @@ class CSVReporter:
             writer.writerow(["Invalid", summary.invalid])
             writer.writerow(["Skipped", summary.skipped])
             writer.writerow(["Total Execution Time (ms)", f"{summary.total_execution_time_ms:.2f}"])
+
+            # Write metadata section if available
+            if metadata:
+                writer.writerow([])
+                writer.writerow(["EXECUTION METADATA"])
+                writer.writerow(["Configuration File", metadata.config_file])
+                writer.writerow(["Blocks Executed", metadata.get_block_list()])
+                writer.writerow(["Test Script", metadata.test_yaml_file])
+                writer.writerow(["Execution Timestamp", metadata.get_timestamp_str()])
 
         return str(filepath)
 
@@ -512,13 +605,14 @@ class FailedExecutionReporter:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def generate_report(self, results: List[Dict[str, Any]], summary: ExecutionSummary) -> str:
+    def generate_report(self, results: List[Dict[str, Any]], summary: ExecutionSummary, metadata: Optional[ExecutionMetadata] = None) -> str:
         """
         Generate FailedExecutionReport.html with failed tests or all-passed message.
 
         Args:
             results: List of test results
             summary: ExecutionSummary instance
+            metadata: Optional ExecutionMetadata instance with execution context
 
         Returns:
             Path to generated HTML file
@@ -532,16 +626,16 @@ class FailedExecutionReporter:
         all_problem_tests = failed_tests + error_tests
 
         if all_problem_tests:
-            html_content = self._build_failed_tests_html(all_problem_tests, summary)
+            html_content = self._build_failed_tests_html(all_problem_tests, summary, metadata)
         else:
-            html_content = self._build_all_passed_html(summary)
+            html_content = self._build_all_passed_html(summary, metadata)
 
         with open(filepath, "w") as f:
             f.write(html_content)
 
         return str(filepath)
 
-    def _build_failed_tests_html(self, failed_tests: List[Dict[str, Any]], summary: ExecutionSummary) -> str:
+    def _build_failed_tests_html(self, failed_tests: List[Dict[str, Any]], summary: ExecutionSummary, metadata: Optional[ExecutionMetadata] = None) -> str:
         """Build HTML content for failed tests."""
         rows = []
         for result in failed_tests:
@@ -573,6 +667,21 @@ class FailedExecutionReporter:
 
         rows_html = "\n".join(rows)
 
+        # Build metadata section if available
+        metadata_html = ""
+        if metadata:
+            metadata_html = f"""
+    <details class="metadata-section">
+        <summary>📋 Execution Metadata (Click to expand)</summary>
+        <div class="metadata-content">
+            <p><strong>Configuration File:</strong> {metadata.config_file}</p>
+            <p><strong>Blocks Executed:</strong> {metadata.get_block_list()}</p>
+            <p><strong>Test Script:</strong> {metadata.test_yaml_file}</p>
+            <p><strong>Execution Time:</strong> {metadata.get_timestamp_str()}</p>
+        </div>
+    </details>
+"""
+
         return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -589,6 +698,36 @@ class FailedExecutionReporter:
             padding: 20px;
             border-radius: 5px;
             margin-bottom: 20px;
+        }}
+        .metadata-section {{
+            background-color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3498db;
+        }}
+        .metadata-section summary {{
+            cursor: pointer;
+            font-weight: bold;
+            color: #2c3e50;
+            user-select: none;
+        }}
+        .metadata-section summary:hover {{
+            color: #3498db;
+        }}
+        .metadata-content {{
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #bdc3c7;
+        }}
+        .metadata-content p {{
+            margin: 8px 0;
+            line-height: 1.6;
+        }}
+        .metadata-content strong {{
+            color: #2c3e50;
+            min-width: 150px;
+            display: inline-block;
         }}
         .summary {{
             display: grid;
@@ -646,6 +785,8 @@ class FailedExecutionReporter:
         <p>Total Problem Tests: <strong>{len(failed_tests)}</strong></p>
     </div>
 
+    {metadata_html}
+
     <div class="summary">
         <div class="summary-card">
             <h3>Total Tests</h3>
@@ -692,8 +833,23 @@ class FailedExecutionReporter:
 </html>
 """
 
-    def _build_all_passed_html(self, summary: ExecutionSummary) -> str:
+    def _build_all_passed_html(self, summary: ExecutionSummary, metadata: Optional[ExecutionMetadata] = None) -> str:
         """Build HTML content for all-passed message."""
+        # Build metadata section if available
+        metadata_html = ""
+        if metadata:
+            metadata_html = f"""
+    <details class="metadata-section">
+        <summary>📋 Execution Metadata (Click to expand)</summary>
+        <div class="metadata-content">
+            <p><strong>Configuration File:</strong> {metadata.config_file}</p>
+            <p><strong>Blocks Executed:</strong> {metadata.get_block_list()}</p>
+            <p><strong>Test Script:</strong> {metadata.test_yaml_file}</p>
+            <p><strong>Execution Time:</strong> {metadata.get_timestamp_str()}</p>
+        </div>
+    </details>
+"""
+
         return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -715,6 +871,36 @@ class FailedExecutionReporter:
         .header h1 {{
             font-size: 2.5em;
             margin: 10px 0;
+        }}
+        .metadata-section {{
+            background-color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3498db;
+        }}
+        .metadata-section summary {{
+            cursor: pointer;
+            font-weight: bold;
+            color: #2c3e50;
+            user-select: none;
+        }}
+        .metadata-section summary:hover {{
+            color: #3498db;
+        }}
+        .metadata-content {{
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #bdc3c7;
+        }}
+        .metadata-content p {{
+            margin: 8px 0;
+            line-height: 1.6;
+        }}
+        .metadata-content strong {{
+            color: #2c3e50;
+            min-width: 150px;
+            display: inline-block;
         }}
         .summary {{
             display: grid;
@@ -745,6 +931,8 @@ class FailedExecutionReporter:
         <p>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
         <p>No failed tests detected in this execution</p>
     </div>
+
+    {metadata_html}
 
     <div class="summary">
         <div class="summary-card">
