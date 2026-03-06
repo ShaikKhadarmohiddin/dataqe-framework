@@ -44,6 +44,9 @@ class BigQueryConnector(BaseConnector):
         self._encryption_config = None
         self._query_job_config = None
 
+        # Track temporary credentials file for cleanup
+        self.temp_credentials_file = None
+
         if "k8_db_details" in config and config_details is not None:
             try:
                 project, db_name = config.get("k8_db_details").split('_', 1)
@@ -61,6 +64,13 @@ class BigQueryConnector(BaseConnector):
         with open(service_config_file, "w") as file:
                 file.write(config_details.data['gcp'][serv_acct_name])
                 # print(config_details.data['gcp'][serv_acct_name])
+
+        # Set restrictive permissions (0o600: owner read/write only)
+        os.chmod(service_config_file, 0o600)
+
+        # Track file path for cleanup
+        self.temp_credentials_file = service_config_file
+        logger.info("Created temporary credentials file (will be cleaned up)")
 
     def _setup_encryption(self):
         """
@@ -166,3 +176,21 @@ class BigQueryConnector(BaseConnector):
         if self.client:
             self.client.close()
             logger.info("BigQuery connection closed")
+
+    def get_temp_credentials_file(self):
+        """
+        Retrieve the path to temporary credentials file if one was created.
+
+        Returns:
+            str: Path to temporary credentials file, or None if not created
+        """
+        return self.temp_credentials_file
+
+    def __del__(self):
+        """Destructor: cleanup temporary credentials file as safety fallback."""
+        if self.temp_credentials_file and os.path.exists(self.temp_credentials_file):
+            try:
+                os.remove(self.temp_credentials_file)
+                logger.info(f"Cleaned up temporary credentials file (destructor): {self.temp_credentials_file}")
+            except Exception as e:
+                logger.warning(f"Failed to cleanup temporary credentials file in destructor: {str(e)}")

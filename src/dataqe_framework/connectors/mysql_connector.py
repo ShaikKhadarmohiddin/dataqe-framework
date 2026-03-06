@@ -70,3 +70,12 @@ class MySQLConnector(BaseConnector):
             logger.info("Closing MySQL connection")
             self.connection.close()
 
+    def get_temp_credentials_file(self):
+        """
+        Retrieve the path to temporary credentials file if one was created.
+
+        Returns:
+            None: MySQL does not create temporary credential files
+        """
+        return None
+
