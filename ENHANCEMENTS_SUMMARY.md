@@ -1,6 +1,193 @@
 # DataQE Framework Enhancements Summary
 
-## Version 0.2.8 - Variable Replacement & Output Directory Control (Latest)
+## Version 0.3.0 - Execution Metadata in Reports (Latest)
+
+### Overview
+
+The DataQE Framework now includes execution metadata in all generated reports (HTML and CSV), making it easy to identify which configuration file, configuration block, and test YAML file was used for each report. This enhancement improves report traceability and helps users correlate results back to their source configuration.
+
+### What's New
+
+#### 1. ExecutionMetadata Class
+
+New `ExecutionMetadata` class captures and formats execution context:
+
+```python
+from dataqe_framework.reporter import ExecutionMetadata
+
+metadata = ExecutionMetadata(
+    config_file="/path/to/config.yml",
+    config_blocks=["config_block_1", "config_block_2"],
+    test_yaml_file="/path/to/tests.yml"
+)
+
+# Formatted access
+print(metadata.get_block_list())       # "config_block_1, config_block_2"
+print(metadata.get_timestamp_str())    # "2026-03-06 14:23:45"
+```
+
+#### 2. HTML Reports - Collapsible Metadata Section
+
+ExecutionReport.html now includes a collapsible metadata section:
+
+```html
+<details class="metadata-section">
+    <summary>📋 Execution Metadata (Click to expand)</summary>
+    <div class="metadata-content">
+        <p><strong>Configuration File:</strong> config.yml</p>
+        <p><strong>Blocks Executed:</strong> config_block_1, config_block_2</p>
+        <p><strong>Test Script:</strong> tests.yml</p>
+        <p><strong>Execution Time:</strong> 2026-03-06 14:23:45</p>
+    </div>
+</details>
+```
+
+- Click to expand/collapse
+- Appears after header, before summary cards
+- Styled to match existing design
+- Automatically hidden if metadata unavailable
+
+#### 3. CSV Reports - Metadata Footer
+
+ExecutionReport.csv now includes metadata rows at the end:
+
+```
+(existing test results)
+
+EXECUTION SUMMARY
+Total Tests,100
+Passed,95
+Failed,5
+(etc.)
+
+EXECUTION METADATA
+Configuration File,config.yml
+Blocks Executed,config_block_1, config_block_2
+Test Script,tests.yml
+Execution Timestamp,2026-03-06 14:23:45
+```
+
+#### 4. FailedExecutionReport - Full Metadata Support
+
+Both "failed tests" and "all passed" views include metadata sections:
+
+- Failed tests report shows metadata in collapsible section
+- All-passed report shows metadata in collapsible section
+- Consistent with ExecutionReport.html styling
+
+#### 5. CLI Integration - Automatic Metadata Capture
+
+Metadata is automatically captured and passed to all reporters:
+
+```bash
+# Single block
+dataqe-run --config config.yml
+
+# All blocks
+dataqe-run --config config.yml --all-blocks
+
+# Specific block
+dataqe-run --config config.yml --block config_block_1
+```
+
+- Config file path captured from `--config` argument
+- Block names extracted from execution order
+- Test YAML file extracted from first block's `validation_script`
+- Timestamp captured at execution start
+- All paths resolved to absolute for clarity
+
+### New Classes in reporter.py
+
+**`ExecutionMetadata`**
+```python
+class ExecutionMetadata:
+    def __init__(
+        self,
+        config_file: str,
+        config_blocks: List[str],
+        test_yaml_file: str,
+        execution_timestamp: Optional[datetime] = None
+    ):
+        """Stores execution metadata for report identification."""
+        ...
+
+    def get_block_list(self) -> str:
+        """Return comma-separated block names."""
+        ...
+
+    def get_timestamp_str(self) -> str:
+        """Return formatted timestamp string (YYYY-MM-DD HH:MM:SS)."""
+        ...
+```
+
+### Updated Method Signatures
+
+All reporters now accept optional metadata:
+
+```python
+# HTMLReporter
+html_reporter.generate_report(results, summary, metadata=None)
+
+# CSVReporter
+csv_reporter.generate_report(results, summary, metadata=None)
+
+# FailedExecutionReporter
+failed_reporter.generate_report(results, summary, metadata=None)
+```
+
+### Backward Compatibility
+
+✅ **Fully backward compatible**:
+- All metadata parameters are optional
+- Reports work fine without metadata
+- Graceful degradation: HTML omits section, CSV omits rows if metadata is None
+- No breaking changes to public APIs
+- Existing code continues to work unchanged
+
+### Benefits
+
+- **Easy Report Identification**: Know exactly which config/test file generated each report
+- **Better Audit Trail**: Track which execution parameters were used
+- **Multi-Block Support**: Clear indication of all blocks executed
+- **No Performance Impact**: Metadata capture is lightweight
+- **Professional Reports**: Additional context for stakeholders
+
+### Example Report Scenarios
+
+**Single Block Execution:**
+```
+Configuration File: config.yml
+Blocks Executed: config_block_1
+Test Script: tests.yml
+Execution Time: 2026-03-06 14:23:45
+```
+
+**Multi-Block Execution:**
+```
+Configuration File: config.yml
+Blocks Executed: config_block_1, config_block_2, config_block_3
+Test Script: tests.yml
+Execution Time: 2026-03-06 14:23:45
+```
+
+---
+
+## Version 0.2.9 - Invalid Test Marking & Error Handling
+
+### Overview
+
+Automatic graceful error handling that catches query execution failures and allows tests to be marked as invalid to skip execution. Comprehensive error reporting with clear messages.
+
+### Features
+✅ Automatic error handling (no flags needed)
+✅ Error details in all reports (HTML, CSV, Console)
+✅ Invalid test marking with YAML
+✅ Auto-save failed tests for next run
+✅ Preprocessor file validation with clear errors
+
+---
+
+## Version 0.2.8 - Variable Replacement & Output Directory Control
 
 ### Overview
 

@@ -2,7 +2,7 @@
 
 A powerful Python framework for validating data quality and ensuring data consistency between source and target databases. Designed for data migration projects, ETL validation, and cross-database reconciliation.
 
-**Version**: 0.2.8
+**Version**: 0.3.0
 
 ## Overview
 
