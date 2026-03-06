@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import os
 import logging
 from dataqe_framework.connectors import get_connector
 from dataqe_framework.comparison.comparator import compare_values
@@ -97,104 +98,107 @@ class ValidationExecutor:
         self.setup_connectors()
         results = []
 
-        for test in self.test_cases:
+        try:
+            for test in self.test_cases:
+                test_start = datetime.now()
+                test_name = list(test.keys())[0]
+                test_config = test[test_name]
 
-            test_start = datetime.now()
-            test_name = list(test.keys())[0]
-            test_config = test[test_name]
+                # Skip tests marked as invalid
+                if _should_skip_test(test_config):
+                    logger.info(f"Skipping test '{test_name}' (marked as invalid)")
+                    continue
 
-            # Skip tests marked as invalid
-            if _should_skip_test(test_config):
-                logger.info(f"Skipping test '{test_name}' (marked as invalid)")
-                continue
+                source_value = None
+                target_value = None
+                source_query_time_ms = 0.0
+                target_query_time_ms = 0.0
+                error_message = None
+                error_type = None
+                error_occurred = False
 
-            source_value = None
-            target_value = None
-            source_query_time_ms = 0.0
-            target_query_time_ms = 0.0
-            error_message = None
-            error_type = None
-            error_occurred = False
+                # Run Source
+                if "source" in test_config:
+                    source_query = test_config["source"]["query"]
 
-            # Run Source
-            if "source" in test_config:
-                source_query = test_config["source"]["query"]
+                    # Process query with source preprocessor (automatic replacement of all release labels)
+                    source_query = self._process_query_with_preprocessor(
+                        source_query, self.source_connector, self.source_preprocessor
+                    )
 
-                # Process query with source preprocessor (automatic replacement of all release labels)
-                source_query = self._process_query_with_preprocessor(
-                    source_query, self.source_connector, self.source_preprocessor
-                )
+                    try:
+                        source_query_start = datetime.now()
+                        source_result = self.source_connector.execute_query(source_query)
+                        source_query_time_ms = self._calculate_duration_ms(source_query_start)
+                        source_value = self._extract_value(source_result)
+                    except Exception as e:
+                        source_query_time_ms = self._calculate_duration_ms(source_query_start)
+                        error_occurred = True
+                        error_type = type(e).__name__
+                        error_message = str(e)
+                        logger.error(f"Error executing source query for test '{test_name}': {error_type} - {error_message}")
 
-                try:
-                    source_query_start = datetime.now()
-                    source_result = self.source_connector.execute_query(source_query)
-                    source_query_time_ms = self._calculate_duration_ms(source_query_start)
-                    source_value = self._extract_value(source_result)
-                except Exception as e:
-                    source_query_time_ms = self._calculate_duration_ms(source_query_start)
-                    error_occurred = True
-                    error_type = type(e).__name__
-                    error_message = str(e)
-                    logger.error(f"Error executing source query for test '{test_name}': {error_type} - {error_message}")
+                # Run Target (only if source succeeded or no source)
+                if "target" in test_config and not error_occurred:
+                    target_query = test_config["target"]["query"]
 
-            # Run Target (only if source succeeded or no source)
-            if "target" in test_config and not error_occurred:
-                target_query = test_config["target"]["query"]
+                    # Process query with target preprocessor (automatic replacement of all release labels)
+                    target_query = self._process_query_with_preprocessor(
+                        target_query, self.target_connector, self.target_preprocessor
+                    )
 
-                # Process query with target preprocessor (automatic replacement of all release labels)
-                target_query = self._process_query_with_preprocessor(
-                    target_query, self.target_connector, self.target_preprocessor
-                )
+                    try:
+                        target_query_start = datetime.now()
+                        target_result = self.target_connector.execute_query(target_query)
+                        target_query_time_ms = self._calculate_duration_ms(target_query_start)
+                        target_value = self._extract_value(target_result)
+                    except Exception as e:
+                        target_query_time_ms = self._calculate_duration_ms(target_query_start)
+                        error_occurred = True
+                        error_type = type(e).__name__
+                        error_message = str(e)
+                        logger.error(f"Error executing target query for test '{test_name}': {error_type} - {error_message}")
 
-                try:
-                    target_query_start = datetime.now()
-                    target_result = self.target_connector.execute_query(target_query)
-                    target_query_time_ms = self._calculate_duration_ms(target_query_start)
-                    target_value = self._extract_value(target_result)
-                except Exception as e:
-                    target_query_time_ms = self._calculate_duration_ms(target_query_start)
-                    error_occurred = True
-                    error_type = type(e).__name__
-                    error_message = str(e)
-                    logger.error(f"Error executing target query for test '{test_name}': {error_type} - {error_message}")
+                # Compare (skip if error occurred)
+                status = "ERROR" if error_occurred else None
+                comparison_time_ms = 0.0
 
-            # Compare (skip if error occurred)
-            status = "ERROR" if error_occurred else None
-            comparison_time_ms = 0.0
+                if not error_occurred:
+                    comparison_start = datetime.now()
+                    status = compare_values(
+                        source_value,
+                        target_value,
+                        test_config
+                    )
+                    comparison_time_ms = self._calculate_duration_ms(comparison_start)
 
-            if not error_occurred:
-                comparison_start = datetime.now()
-                status = compare_values(
-                    source_value,
-                    target_value,
-                    test_config
-                )
-                comparison_time_ms = self._calculate_duration_ms(comparison_start)
+                test_end = datetime.now()
+                execution_time_ms = self._calculate_duration_ms(test_start)
 
-            test_end = datetime.now()
-            execution_time_ms = self._calculate_duration_ms(test_start)
+                result_dict = {
+                    "test_name": test_name,
+                    "severity": test_config.get("severity"),
+                    "source_value": source_value,
+                    "target_value": target_value,
+                    "status": status,
+                    "start_time": test_start,
+                    "end_time": test_end,
+                    "execution_time_ms": execution_time_ms,
+                    "source_query_time_ms": source_query_time_ms,
+                    "target_query_time_ms": target_query_time_ms,
+                    "comparison_time_ms": comparison_time_ms,
+                    "script_name": script_name,
+                    "error_occurred": error_occurred,
+                    "error_type": error_type,
+                    "error_message": error_message
+                }
 
-            result_dict = {
-                "test_name": test_name,
-                "severity": test_config.get("severity"),
-                "source_value": source_value,
-                "target_value": target_value,
-                "status": status,
-                "start_time": test_start,
-                "end_time": test_end,
-                "execution_time_ms": execution_time_ms,
-                "source_query_time_ms": source_query_time_ms,
-                "target_query_time_ms": target_query_time_ms,
-                "comparison_time_ms": comparison_time_ms,
-                "script_name": script_name,
-                "error_occurred": error_occurred,
-                "error_type": error_type,
-                "error_message": error_message
-            }
+                results.append(result_dict)
 
-            results.append(result_dict)
-
-        return results
+            return results
+        finally:
+            # Cleanup temporary credentials files
+            self._cleanup_temp_credentials()
 
     def _calculate_duration_ms(self, start_time: datetime) -> float:
         """Calculate duration in milliseconds from start_time to now."""
@@ -235,4 +239,29 @@ class ValidationExecutor:
             logger.error(f"Error processing query with preprocessor: {str(e)}")
             # Return original query on error
             return query
+
+    def _cleanup_temp_credentials(self):
+        """
+        Cleanup temporary credentials files created by connectors.
+
+        Iterates through source and target connectors, retrieves any temporary
+        credentials files, and safely deletes them. Errors during cleanup are
+        logged but do not stop execution.
+        """
+        for connector in [self.source_connector, self.target_connector]:
+            if not connector:
+                continue
+
+            try:
+                # Safely call get_temp_credentials_file() if it exists
+                temp_file = getattr(connector, 'get_temp_credentials_file', lambda: None)()
+
+                if temp_file and os.path.exists(temp_file):
+                    try:
+                        os.remove(temp_file)
+                        logger.info(f"Cleaned up temporary credentials file: {temp_file}")
+                    except Exception as e:
+                        logger.warning(f"Failed to delete temporary credentials file {temp_file}: {str(e)}")
+            except Exception as e:
+                logger.warning(f"Error during credentials cleanup: {str(e)}")
 
