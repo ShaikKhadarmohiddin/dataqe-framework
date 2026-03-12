@@ -2,7 +2,7 @@
 
 A powerful Python framework for validating data quality and ensuring data consistency between source and target databases. Designed for data migration projects, ETL validation, and cross-database reconciliation.
 
-**Version**: 0.3.0
+**Version**: 0.3.2
 
 ## Overview
 
@@ -280,7 +280,70 @@ gcp:
   credentials_path: /path/to/service-account.json
   location: us-central1
   use_encryption: false
+  # Optional: Replace dataset placeholders (e.g., EDW_PRCD_PROJECT)
+  replace_dataset:
+    EDW_PRCD_PROJECT: actual-project-id-edw
+    PD_CDW_METADATA: actual-project-id-pd
 ```
+
+#### Replace Dataset Placeholders
+
+Replace dataset placeholders with actual BigQuery project IDs. Two formats are supported:
+
+**Format 1: Configuration-driven lookup (Recommended)**
+
+Use `project_name` and `dataset_name` to auto-resolve project IDs from configuration:
+
+```yaml
+config_block_example:
+  source:
+    database_type: gcpbq
+    gcp:
+      project_id: my-project
+      dataset_id: staging
+      credentials_path: /path/to/creds.json
+      # Auto-resolve from castlight config
+      replace_dataset:
+        - project_name: "pd"
+          dataset_name: "cdw_prcd_metadata"
+        - project_name: "pd"
+          dataset_name: "cdw_metadata"
+
+  target:
+    database_type: gcpbq
+    gcp:
+      project_id: my-project
+      dataset_id: analytics
+      credentials_path: /path/to/creds.json
+      replace_dataset:
+        - project_name: "edw"
+          dataset_name: "prcd_metadata"
+```
+
+This generates placeholders from project_name and dataset_name:
+- `project_name: "pd"` + `dataset_name: "cdw_prcd_metadata"` → looks for `PD_CDW_PRCD_METADATA` in queries
+- `project_name: "edw"` + `dataset_name: "prcd_metadata"` → looks for `EDW_PRCD_METADATA` in queries
+
+The actual project IDs are retrieved from: `config_details.data['bigquery'][project_name]['datasets'][dataset_name]['project_id']`
+
+**Format 2: Direct mapping (Legacy)**
+
+Manually specify placeholder to project ID mappings:
+
+```yaml
+replace_dataset:
+  EDW_PRCD_PROJECT: "data-warehouse-prod"
+  PD_CDW_METADATA: "analytics-prod"
+```
+
+**Test query example:**
+```sql
+SELECT COUNT(*) as value
+FROM PD_CDW_PRCD_METADATA.customers
+JOIN EDW_PRCD_METADATA.addresses ON customers.id = addresses.customer_id
+```
+
+The placeholders are automatically replaced at runtime with the actual project IDs. Format 1 is preferred as it eliminates manual project ID maintenance.
 
 See [CONFIGURATION.md](CONFIGURATION.md) for detailed configuration options.
 

@@ -15,13 +15,14 @@ class QueryPreprocessor:
     and replaces placeholders in test queries with actual dataset names.
     """
 
-    def __init__(self, preprocessor_queries_path: str = None, preprocessor_config: Dict[str, Any] = None):
+    def __init__(self, preprocessor_queries_path: str = None, preprocessor_config: Dict[str, Any] = None, config_details: Any = None):
         """
         Initialize the QueryPreprocessor.
 
         Args:
             preprocessor_queries_path: Path to preprocessor_queries.yml file.
-            preprocessor_config: Configuration dict with config_query_key and other settings.
+            preprocessor_config: Configuration dict with config_query_key and replace_dataset settings.
+            config_details: Config details object from castlight_common_lib for dataset lookups.
 
         Raises:
             FileNotFoundError: If preprocessor_queries_path is provided but file doesn't exist
@@ -32,9 +33,146 @@ class QueryPreprocessor:
         self.preprocessor_queries = {}
         self.dataset_mappings = {}
         self.release_labels_cache = None
+        self.config_details = config_details
+        self._replace_dataset_cache = {}  # Cache for resolved placeholders
 
         if self.preprocessor_queries_path:
             self._load_preprocessor_queries()
+
+    def replace_dataset_placeholders(self, query: str) -> str:
+        """
+        Replace dataset/project placeholders using mapping from config.
+
+        Supports two formats:
+        1. List of dicts: [{"project_name": "pd", "dataset_name": "cdw_metadata"}]
+           - Generates placeholder PD_CDW_METADATA from project_name and dataset_name
+           - Looks up actual project_id from config_details
+        2. Dict format (legacy): {"EDW_PRCD_PROJECT": "actual-project-id-edw"}
+           - Direct placeholder to project_id mapping
+
+        Args:
+            query: Original query with placeholders
+
+        Returns:
+            Query with dataset placeholders replaced by actual values
+        """
+        replace_dataset = self.preprocessor_config.get("replace_dataset")
+        if not replace_dataset:
+            return query
+
+        # Build placeholder mappings based on format
+        placeholder_mappings = self._build_placeholder_mappings(replace_dataset)
+
+        if not placeholder_mappings:
+            return query
+
+        modified_query = query
+        for placeholder, actual_value in placeholder_mappings.items():
+            # Handle both PLACEHOLDER and placeholder formats
+            modified_query = modified_query.replace(placeholder, actual_value)
+            # Also try lowercase version if different
+            if placeholder.lower() != placeholder:
+                modified_query = modified_query.replace(placeholder.lower(), actual_value)
+
+        if modified_query != query:
+            logger.debug(
+                f"Replaced dataset placeholders in query. "
+                f"Replacements: {list(placeholder_mappings.keys())}"
+            )
+
+        return modified_query
+
+    def _build_placeholder_mappings(self, replace_dataset) -> Dict[str, str]:
+        """
+        Build placeholder to project_id mappings from replace_dataset config.
+
+        Supports both list of dicts and dict formats.
+
+        Args:
+            replace_dataset: Either list of {"project_name": ..., "dataset_name": ...}
+                           or dict of {"PLACEHOLDER": "project_id"}
+
+        Returns:
+            Dict mapping placeholders to actual project IDs
+        """
+        mappings = {}
+
+        if isinstance(replace_dataset, list):
+            # New format: list of objects with project_name and dataset_name
+            for item in replace_dataset:
+                if not isinstance(item, dict):
+                    logger.warning(f"Invalid replace_dataset item (not a dict): {item}")
+                    continue
+
+                project_name = item.get("project_name")
+                dataset_name = item.get("dataset_name")
+
+                if not project_name or not dataset_name:
+                    logger.warning(
+                        f"Invalid replace_dataset item (missing project_name or dataset_name): {item}"
+                    )
+                    continue
+
+                # Generate placeholder from project_name and dataset_name
+                placeholder = f"{project_name.upper()}_{dataset_name.upper()}"
+
+                # Look up actual project_id
+                project_id = self._lookup_project_id(project_name, dataset_name)
+                if project_id:
+                    mappings[placeholder] = project_id
+                    logger.debug(
+                        f"Resolved placeholder {placeholder} to {project_id} "
+                        f"from project_name={project_name}, dataset_name={dataset_name}"
+                    )
+                else:
+                    logger.warning(
+                        f"Failed to resolve placeholder {placeholder}: "
+                        f"could not find project_id for {project_name}.{dataset_name}"
+                    )
+
+        elif isinstance(replace_dataset, dict):
+            # Legacy format: direct placeholder to project_id mapping
+            mappings = replace_dataset
+
+        else:
+            logger.warning(f"Invalid replace_dataset format: {type(replace_dataset)}")
+
+        return mappings
+
+    def _lookup_project_id(self, project_name: str, dataset_name: str) -> Optional[str]:
+        """
+        Lookup actual BigQuery project_id from config_details.
+
+        Args:
+            project_name: Project name (e.g., "pd", "edw")
+            dataset_name: Dataset name (e.g., "cdw_prcd_metadata")
+
+        Returns:
+            The actual BigQuery project_id, or None if not found
+        """
+        # Check cache first
+        cache_key = f"{project_name}_{dataset_name}"
+        if cache_key in self._replace_dataset_cache:
+            return self._replace_dataset_cache[cache_key]
+
+        # If no config_details, cannot lookup
+        if not self.config_details:
+            logger.debug(
+                f"Cannot lookup project_id for {project_name}.{dataset_name}: "
+                f"config_details not available"
+            )
+            return None
+
+        try:
+            # Lookup: config_details.data['bigquery'][project_name]['datasets'][dataset_name]['project_id']
+            project_id = self.config_details.data['bigquery'][project_name]['datasets'][dataset_name]['project_id']
+            self._replace_dataset_cache[cache_key] = project_id
+            return project_id
+        except (KeyError, TypeError, AttributeError) as e:
+            logger.warning(
+                f"Failed to lookup project_id for {project_name}.{dataset_name}: {str(e)}"
+            )
+            return None
 
     def _load_preprocessor_queries(self) -> None:
         """Load preprocessor queries from YAML file."""
