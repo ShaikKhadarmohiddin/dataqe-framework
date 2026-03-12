@@ -7,6 +7,15 @@ from dataqe_framework.preprocessor import QueryPreprocessor
 
 logger = logging.getLogger(__name__)
 
+# Try to import config_details from castlight_common_lib
+try:
+    import castlight_common_lib.configfunctions as cfg
+    _config_details = None
+    if 'SPRING_PROFILES_ACTIVE' in os.environ:
+        _config_details = cfg.Config('dataqeteam', [os.environ.get('SPRING_PROFILES_ACTIVE')])
+except ImportError:
+    _config_details = None
+
 
 def _should_skip_test(test_config: dict) -> bool:
     """
@@ -34,25 +43,27 @@ class ValidationExecutor:
         self.source_preprocessor = None
         self.target_preprocessor = None
 
-        # Initialize preprocessors if path is provided
-        if preprocessor_queries_path:
-            # Extract config_query_key from source config (under gcp/mysql/etc)
-            src_config = self._extract_preprocessor_config(source_config)
-            self.source_preprocessor = QueryPreprocessor(preprocessor_queries_path, src_config)
+        # Extract preprocessor config from source and target
+        src_config = self._extract_preprocessor_config(source_config)
+        tgt_config = self._extract_preprocessor_config(target_config)
 
-            # Extract config_query_key from target config (under gcp/mysql/etc)
-            tgt_config = self._extract_preprocessor_config(target_config)
-            self.target_preprocessor = QueryPreprocessor(preprocessor_queries_path, tgt_config)
+        # Initialize preprocessors if path is provided or if there's preprocessor config
+        # (for features like replace_dataset that don't require preprocessor_queries_path)
+        if preprocessor_queries_path or src_config:
+            self.source_preprocessor = QueryPreprocessor(preprocessor_queries_path, src_config, _config_details)
+
+        if preprocessor_queries_path or tgt_config:
+            self.target_preprocessor = QueryPreprocessor(preprocessor_queries_path, tgt_config, _config_details)
 
     def _extract_preprocessor_config(self, config: dict) -> dict:
         """
-        Extract preprocessor config (config_query_key) from database-specific config.
+        Extract preprocessor config from database-specific config.
 
         Args:
             config: Source or target config block
 
         Returns:
-            Dictionary with config_query_key if found, empty dict otherwise
+            Dictionary with config_query_key and replace_dataset if found, empty dict otherwise
         """
         if not config:
             return {}
@@ -70,12 +81,21 @@ class ValidationExecutor:
         if not db_config or not isinstance(db_config, dict):
             return {}
 
+        preprocessor_config = {}
+
         # Extract config_query_key if present
         config_query_key = db_config.get("config_query_key")
         if config_query_key:
-            return {"config_query_key": config_query_key}
+            preprocessor_config["config_query_key"] = config_query_key
 
-        return {}
+        # Extract replace_dataset if present (supports both list and dict formats)
+        replace_dataset = db_config.get("replace_dataset")
+        if replace_dataset:
+            # Accept list of dicts or dict format
+            if isinstance(replace_dataset, (list, dict)):
+                preprocessor_config["replace_dataset"] = replace_dataset
+
+        return preprocessor_config
 
     def setup_connectors(self):
         if self.source_config:
@@ -214,10 +234,11 @@ class ValidationExecutor:
 
     def _process_query_with_preprocessor(self, query: str, connector, preprocessor) -> str:
         """
-        Process query with preprocessor to replace all release label placeholders.
+        Process query with preprocessor to replace dataset placeholders and release labels.
 
-        Automatically replaces all SOURCE_CURR_WEEK and SOURCE_PREV_WEEK placeholders
-        without needing per-test configuration.
+        Automatically replaces dataset placeholders (e.g., EDW_PRCD_PROJECT) and
+        all SOURCE_CURR_WEEK and SOURCE_PREV_WEEK placeholders without needing
+        per-test configuration.
 
         Args:
             query: Original query string
@@ -232,8 +253,12 @@ class ValidationExecutor:
             return query
 
         try:
-            # Process query through preprocessor with automatic replacement
-            processed_query = preprocessor.replace_release_labels(query, connector)
+            # Step 1: Replace dataset placeholders first (e.g., EDW_PRCD_PROJECT)
+            processed_query = preprocessor.replace_dataset_placeholders(query)
+
+            # Step 2: Replace release label placeholders (e.g., SOURCE_CURR_WEEK)
+            processed_query = preprocessor.replace_release_labels(processed_query, connector)
+
             return processed_query
         except Exception as e:
             logger.error(f"Error processing query with preprocessor: {str(e)}")
