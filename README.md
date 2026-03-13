@@ -2,7 +2,7 @@
 
 A powerful Python framework for validating data quality and ensuring data consistency between source and target databases. Designed for data migration projects, ETL validation, and cross-database reconciliation.
 
-**Version**: 0.3.2
+**Version**: 0.3.3
 
 ## Overview
 
@@ -288,11 +288,11 @@ gcp:
 
 #### Replace Dataset Placeholders
 
-Replace dataset placeholders with actual BigQuery project IDs. Two formats are supported:
+Replace dataset placeholders with actual BigQuery project IDs. Three formats are supported:
 
-**Format 1: Configuration-driven lookup (Recommended)**
+**Format 1: List with fallback (Recommended - v0.3.3+)**
 
-Use `project_name` and `dataset_name` to auto-resolve project IDs from configuration:
+Use `project_name`, `dataset_name`, and optional `bq_project_id` fallback:
 
 ```yaml
 config_block_example:
@@ -302,12 +302,13 @@ config_block_example:
       project_id: my-project
       dataset_id: staging
       credentials_path: /path/to/creds.json
-      # Auto-resolve from castlight config
       replace_dataset:
         - project_name: "pd"
           dataset_name: "cdw_prcd_metadata"
+          bq_project_id: "pd-project-123"  # Fallback if SPRING_PROFILES_ACTIVE not set
         - project_name: "pd"
           dataset_name: "cdw_metadata"
+          bq_project_id: "pd-project-456"
 
   target:
     database_type: gcpbq
@@ -318,15 +319,30 @@ config_block_example:
       replace_dataset:
         - project_name: "edw"
           dataset_name: "prcd_metadata"
+          bq_project_id: "edw-project-789"
 ```
 
-This generates placeholders from project_name and dataset_name:
-- `project_name: "pd"` + `dataset_name: "cdw_prcd_metadata"` → looks for `PD_CDW_PRCD_METADATA` in queries
-- `project_name: "edw"` + `dataset_name: "prcd_metadata"` → looks for `EDW_PRCD_METADATA` in queries
+This format:
+- Generates placeholders from `project_name` + `dataset_name` (uppercase): `PD_CDW_PRCD_METADATA`
+- Tries to lookup from castlight config if `SPRING_PROFILES_ACTIVE` is set
+- Falls back to `bq_project_id` if environment variable not set or lookup fails
+- Works in both standalone and castlight-integrated environments
+
+**Format 2: Configuration-driven lookup (v0.3.2+)**
+
+Use only `project_name` and `dataset_name` (requires `SPRING_PROFILES_ACTIVE` set):
+
+```yaml
+replace_dataset:
+  - project_name: "pd"
+    dataset_name: "cdw_prcd_metadata"
+  - project_name: "edw"
+    dataset_name: "prcd_metadata"
+```
 
 The actual project IDs are retrieved from: `config_details.data['bigquery'][project_name]['datasets'][dataset_name]['project_id']`
 
-**Format 2: Direct mapping (Legacy)**
+**Format 3: Direct mapping (Legacy)**
 
 Manually specify placeholder to project ID mappings:
 
@@ -343,9 +359,9 @@ FROM PD_CDW_PRCD_METADATA.customers
 JOIN EDW_PRCD_METADATA.addresses ON customers.id = addresses.customer_id
 ```
 
-The placeholders are automatically replaced at runtime with the actual project IDs. Format 1 is preferred as it eliminates manual project ID maintenance.
+All formats are fully backward compatible. Format 1 is recommended for new configurations as it provides flexibility with the `bq_project_id` fallback.
 
-See [CONFIGURATION.md](CONFIGURATION.md) for detailed configuration options.
+For detailed documentation on the fallback feature, see [REPLACE_DATASET_FALLBACK.md](REPLACE_DATASET_FALLBACK.md).
 
 ## Test Suite Definition
 

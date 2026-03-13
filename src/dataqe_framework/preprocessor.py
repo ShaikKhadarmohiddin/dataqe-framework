@@ -44,9 +44,11 @@ class QueryPreprocessor:
         Replace dataset/project placeholders using mapping from config.
 
         Supports two formats:
-        1. List of dicts: [{"project_name": "pd", "dataset_name": "cdw_metadata"}]
+        1. List of dicts with fallback:
+           [{"project_name": "pd", "dataset_name": "cdw_metadata", "bq_project_id": "my-project"}]
            - Generates placeholder PD_CDW_METADATA from project_name and dataset_name
-           - Looks up actual project_id from config_details
+           - If config_details available: looks up actual project_id from castlight config
+           - If config_details NOT available: uses bq_project_id directly
         2. Dict format (legacy): {"EDW_PRCD_PROJECT": "actual-project-id-edw"}
            - Direct placeholder to project_id mapping
 
@@ -88,8 +90,13 @@ class QueryPreprocessor:
 
         Supports both list of dicts and dict formats.
 
+        For list format:
+        - If config_details available: looks up project_id from castlight config
+        - If config_details NOT available: uses bq_project_id as fallback
+        - If both unavailable: logs warning and skips
+
         Args:
-            replace_dataset: Either list of {"project_name": ..., "dataset_name": ...}
+            replace_dataset: Either list of {"project_name": ..., "dataset_name": ..., "bq_project_id": ...}
                            or dict of {"PLACEHOLDER": "project_id"}
 
         Returns:
@@ -106,6 +113,7 @@ class QueryPreprocessor:
 
                 project_name = item.get("project_name")
                 dataset_name = item.get("dataset_name")
+                bq_project_id = item.get("bq_project_id")
 
                 if not project_name or not dataset_name:
                     logger.warning(
@@ -116,18 +124,28 @@ class QueryPreprocessor:
                 # Generate placeholder from project_name and dataset_name
                 placeholder = f"{project_name.upper()}_{dataset_name.upper()}"
 
-                # Look up actual project_id
+                # Try to lookup from config_details first, fallback to bq_project_id
                 project_id = self._lookup_project_id(project_name, dataset_name)
-                if project_id:
-                    mappings[placeholder] = project_id
+
+                if not project_id and bq_project_id:
+                    # Use bq_project_id as fallback
+                    project_id = bq_project_id
                     logger.debug(
                         f"Resolved placeholder {placeholder} to {project_id} "
-                        f"from project_name={project_name}, dataset_name={dataset_name}"
+                        f"using bq_project_id fallback"
                     )
+
+                if project_id:
+                    mappings[placeholder] = project_id
+                    if self.config_details:
+                        logger.debug(
+                            f"Resolved placeholder {placeholder} to {project_id} "
+                            f"from config_details for {project_name}.{dataset_name}"
+                        )
                 else:
                     logger.warning(
                         f"Failed to resolve placeholder {placeholder}: "
-                        f"could not find project_id for {project_name}.{dataset_name}"
+                        f"no project_id from config_details and bq_project_id not provided"
                     )
 
         elif isinstance(replace_dataset, dict):

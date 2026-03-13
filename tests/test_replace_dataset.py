@@ -634,5 +634,211 @@ class TestReplaceDatasetWithConfigDetails(unittest.TestCase):
         self.assertNotIn("LEGACY_PLACEHOLDER", result)
 
 
+class TestReplaceDatasetListFormatWithFallback(unittest.TestCase):
+    """Test cases for list format with bq_project_id fallback."""
+
+    def test_list_format_with_config_details_available(self):
+        """Test list format uses config_details when available."""
+        # Mock config_details
+        mock_config_details = MagicMock()
+        mock_config_details.data = {
+            'bigquery': {
+                'pd': {
+                    'datasets': {
+                        'cdw_prcd_metadata': {
+                            'project_id': 'castlight-project-123'
+                        }
+                    }
+                }
+            }
+        }
+
+        preprocessor_config = {
+            "replace_dataset": [
+                {
+                    "project_name": "pd",
+                    "dataset_name": "cdw_prcd_metadata",
+                    "bq_project_id": "fallback-project-456"
+                }
+            ]
+        }
+        preprocessor = QueryPreprocessor(None, preprocessor_config, mock_config_details)
+
+        query = "SELECT * FROM PD_CDW_PRCD_METADATA.table WHERE id = 1"
+        result = preprocessor.replace_dataset_placeholders(query)
+
+        # Should use config_details, not fallback
+        self.assertIn("castlight-project-123.table", result)
+        self.assertNotIn("fallback-project-456", result)
+        self.assertNotIn("PD_CDW_PRCD_METADATA", result)
+
+    def test_list_format_with_fallback_no_config_details(self):
+        """Test list format uses bq_project_id when config_details not available."""
+        preprocessor_config = {
+            "replace_dataset": [
+                {
+                    "project_name": "pd",
+                    "dataset_name": "cdw_prcd_metadata",
+                    "bq_project_id": "fallback-project-456"
+                }
+            ]
+        }
+        # No config_details provided
+        preprocessor = QueryPreprocessor(None, preprocessor_config, None)
+
+        query = "SELECT * FROM PD_CDW_PRCD_METADATA.table WHERE id = 1"
+        result = preprocessor.replace_dataset_placeholders(query)
+
+        # Should use fallback since config_details is None
+        self.assertIn("fallback-project-456.table", result)
+        self.assertNotIn("PD_CDW_PRCD_METADATA", result)
+
+    def test_list_format_multiple_items_with_fallback(self):
+        """Test list format with multiple items and fallbacks."""
+        preprocessor_config = {
+            "replace_dataset": [
+                {
+                    "project_name": "pd",
+                    "dataset_name": "cdw_prcd_metadata",
+                    "bq_project_id": "pd-project-123"
+                },
+                {
+                    "project_name": "pd",
+                    "dataset_name": "cdw_metadata",
+                    "bq_project_id": "pd-project-456"
+                }
+            ]
+        }
+        preprocessor = QueryPreprocessor(None, preprocessor_config, None)
+
+        query = """
+            SELECT a.* FROM PD_CDW_PRCD_METADATA.table1 a
+            JOIN PD_CDW_METADATA.table2 b ON a.id = b.id
+        """
+        result = preprocessor.replace_dataset_placeholders(query)
+
+        self.assertIn("pd-project-123.table1", result)
+        self.assertIn("pd-project-456.table2", result)
+        self.assertNotIn("PD_CDW_PRCD_METADATA", result)
+        self.assertNotIn("PD_CDW_METADATA", result)
+
+    def test_list_format_missing_bq_project_id(self):
+        """Test list format without bq_project_id and no config_details."""
+        preprocessor_config = {
+            "replace_dataset": [
+                {
+                    "project_name": "pd",
+                    "dataset_name": "cdw_prcd_metadata"
+                    # No bq_project_id provided
+                }
+            ]
+        }
+        preprocessor = QueryPreprocessor(None, preprocessor_config, None)
+
+        query = "SELECT * FROM PD_CDW_PRCD_METADATA.table WHERE id = 1"
+        result = preprocessor.replace_dataset_placeholders(query)
+
+        # Should not replace since both config_details and bq_project_id are missing
+        self.assertIn("PD_CDW_PRCD_METADATA", result)
+        self.assertEqual(result, query)
+
+    def test_list_format_config_details_lookup_fails_uses_fallback(self):
+        """Test fallback to bq_project_id when config_details lookup fails."""
+        # Mock config_details that will raise KeyError on lookup
+        mock_config_details = MagicMock()
+        mock_config_details.data = {
+            'bigquery': {
+                'edw': {
+                    'datasets': {
+                        'other_dataset': {
+                            'project_id': 'edw-project-789'
+                        }
+                    }
+                }
+            }
+        }
+
+        preprocessor_config = {
+            "replace_dataset": [
+                {
+                    "project_name": "pd",
+                    "dataset_name": "cdw_prcd_metadata",
+                    "bq_project_id": "fallback-project-111"
+                }
+            ]
+        }
+        preprocessor = QueryPreprocessor(None, preprocessor_config, mock_config_details)
+
+        query = "SELECT * FROM PD_CDW_PRCD_METADATA.table WHERE id = 1"
+        result = preprocessor.replace_dataset_placeholders(query)
+
+        # Should fall back to bq_project_id since lookup fails
+        self.assertIn("fallback-project-111.table", result)
+        self.assertNotIn("PD_CDW_PRCD_METADATA", result)
+
+    def test_list_format_case_insensitive_placeholder_replacement(self):
+        """Test that placeholder replacement works with lowercase variants."""
+        preprocessor_config = {
+            "replace_dataset": [
+                {
+                    "project_name": "pd",
+                    "dataset_name": "cdw_prcd_metadata",
+                    "bq_project_id": "my-project-123"
+                }
+            ]
+        }
+        preprocessor = QueryPreprocessor(None, preprocessor_config, None)
+
+        # Test with lowercase placeholder
+        query = "SELECT * FROM pd_cdw_prcd_metadata.table WHERE id = 1"
+        result = preprocessor.replace_dataset_placeholders(query)
+
+        self.assertIn("my-project-123.table", result)
+        self.assertNotIn("pd_cdw_prcd_metadata", result)
+
+    def test_list_format_mixed_placeholders(self):
+        """Test list format with both uppercase and lowercase placeholders."""
+        preprocessor_config = {
+            "replace_dataset": [
+                {
+                    "project_name": "pd",
+                    "dataset_name": "cdw_prcd_metadata",
+                    "bq_project_id": "my-project-123"
+                }
+            ]
+        }
+        preprocessor = QueryPreprocessor(None, preprocessor_config, None)
+
+        query = """
+            SELECT a.* FROM PD_CDW_PRCD_METADATA.table1 a
+            JOIN pd_cdw_prcd_metadata.table2 b ON a.id = b.id
+        """
+        result = preprocessor.replace_dataset_placeholders(query)
+
+        # Both uppercase and lowercase should be replaced
+        self.assertEqual(result.count("my-project-123"), 2)
+        self.assertNotIn("PD_CDW_PRCD_METADATA", result)
+        self.assertNotIn("pd_cdw_prcd_metadata", result)
+
+    def test_list_format_with_hyphens_in_project_id(self):
+        """Test fallback project IDs with hyphens and numbers."""
+        preprocessor_config = {
+            "replace_dataset": [
+                {
+                    "project_name": "pd",
+                    "dataset_name": "cdw_metadata",
+                    "bq_project_id": "my-gcp-project-pd-001"
+                }
+            ]
+        }
+        preprocessor = QueryPreprocessor(None, preprocessor_config, None)
+
+        query = "SELECT * FROM PD_CDW_METADATA.table WHERE id = 1"
+        result = preprocessor.replace_dataset_placeholders(query)
+
+        self.assertIn("my-gcp-project-pd-001.table", result)
+        self.assertNotIn("PD_CDW_METADATA", result)
+
+
 if __name__ == "__main__":
     unittest.main()
