@@ -276,7 +276,9 @@ class TestHTMLReporterReplacementDisplay(unittest.TestCase):
     """Test that HTMLReporter displays replacements."""
 
     def test_html_report_includes_replacements_details(self):
-        """Test that HTML report includes collapsible replacements section."""
+        """Test that HTML report includes replacements in execution metadata section."""
+        from dataqe_framework.reporter import ExecutionMetadata
+
         with tempfile.TemporaryDirectory() as tmpdir:
             reporter = HTMLReporter(tmpdir)
 
@@ -305,18 +307,21 @@ class TestHTMLReporterReplacementDisplay(unittest.TestCase):
             ]
 
             summary = ExecutionSummary(results)
-            html_path = reporter.generate_report(results, summary)
+            metadata = ExecutionMetadata("config.yml", ["block1"])
+            html_path = reporter.generate_report(results, summary, metadata)
 
             with open(html_path, 'r') as f:
                 html_content = f.read()
 
-            self.assertIn("🔄 Replacements", html_content)
+            self.assertIn("Dataset Placeholders:", html_content)
             self.assertIn("EDW_PRCD_PROJECT", html_content)
             self.assertIn("actual-edw", html_content)
             self.assertIn("<details", html_content)
 
     def test_html_report_shows_dataset_and_release_labels(self):
         """Test that HTML report shows both dataset and release label replacements."""
+        from dataqe_framework.reporter import ExecutionMetadata
+
         with tempfile.TemporaryDirectory() as tmpdir:
             reporter = HTMLReporter(tmpdir)
 
@@ -345,7 +350,8 @@ class TestHTMLReporterReplacementDisplay(unittest.TestCase):
             ]
 
             summary = ExecutionSummary(results)
-            html_path = reporter.generate_report(results, summary)
+            metadata = ExecutionMetadata("config.yml", ["block1"])
+            html_path = reporter.generate_report(results, summary, metadata)
 
             with open(html_path, 'r') as f:
                 html_content = f.read()
@@ -395,7 +401,9 @@ class TestCSVReporterReplacementDisplay(unittest.TestCase):
     """Test that CSVReporter displays replacements."""
 
     def test_csv_report_includes_replacements_column(self):
-        """Test that CSV report includes replacements column."""
+        """Test that CSV report includes replacements in execution metadata section."""
+        from dataqe_framework.reporter import ExecutionMetadata
+
         with tempfile.TemporaryDirectory() as tmpdir:
             reporter = CSVReporter(tmpdir)
 
@@ -424,16 +432,19 @@ class TestCSVReporterReplacementDisplay(unittest.TestCase):
             ]
 
             summary = ExecutionSummary(results)
-            csv_path = reporter.generate_report(results, summary)
+            metadata = ExecutionMetadata("config.yml", ["block1"])
+            csv_path = reporter.generate_report(results, summary, metadata)
 
             with open(csv_path, 'r') as f:
                 csv_content = f.read()
 
-            self.assertIn("Replacements", csv_content)
-            self.assertIn("EDW_PRCD_PROJECT→actual-edw", csv_content)
+            self.assertIn("REPLACEMENTS", csv_content)
+            self.assertIn("EDW_PRCD_PROJECT → actual-edw", csv_content)
 
     def test_csv_report_multiple_replacements_semicolon_separated(self):
-        """Test that multiple replacements are semicolon-separated in CSV."""
+        """Test that multiple replacements are shown in REPLACEMENTS section."""
+        from dataqe_framework.reporter import ExecutionMetadata
+
         with tempfile.TemporaryDirectory() as tmpdir:
             reporter = CSVReporter(tmpdir)
 
@@ -462,15 +473,16 @@ class TestCSVReporterReplacementDisplay(unittest.TestCase):
             ]
 
             summary = ExecutionSummary(results)
-            csv_path = reporter.generate_report(results, summary)
+            metadata = ExecutionMetadata("config.yml", ["block1"])
+            csv_path = reporter.generate_report(results, summary, metadata)
 
             with open(csv_path, 'r') as f:
                 csv_content = f.read()
 
-            # All three replacements should be present
-            self.assertIn("EDW_PRCD_PROJECT→actual-edw", csv_content)
-            self.assertIn("PD_CDW→actual-pd", csv_content)
-            self.assertIn("BCBSA_CURR_WEEK→bcbsa_export1", csv_content)
+            # All three replacements should be present in REPLACEMENTS section
+            self.assertIn("EDW_PRCD_PROJECT → actual-edw", csv_content)
+            self.assertIn("PD_CDW → actual-pd", csv_content)
+            self.assertIn("BCBSA_CURR_WEEK → bcbsa_export1", csv_content)
 
 
 class TestFailedExecutionReporterReplacementDisplay(unittest.TestCase):
@@ -478,6 +490,8 @@ class TestFailedExecutionReporterReplacementDisplay(unittest.TestCase):
 
     def test_failed_report_includes_replacements_for_failed_tests(self):
         """Test that failed execution report includes replacements for failed tests."""
+        from dataqe_framework.reporter import ExecutionMetadata
+
         with tempfile.TemporaryDirectory() as tmpdir:
             reporter = FailedExecutionReporter(tmpdir)
 
@@ -506,12 +520,13 @@ class TestFailedExecutionReporterReplacementDisplay(unittest.TestCase):
             ]
 
             summary = ExecutionSummary(results)
-            html_path = reporter.generate_report(results, summary)
+            metadata = ExecutionMetadata("config.yml", ["block1"])
+            html_path = reporter.generate_report(results, summary, metadata)
 
             with open(html_path, 'r') as f:
                 html_content = f.read()
 
-            self.assertIn("🔄 Replacements", html_content)
+            self.assertIn("Dataset Placeholders:", html_content)
             self.assertIn("EDW_PRCD_PROJECT", html_content)
             self.assertIn("actual-edw", html_content)
 
