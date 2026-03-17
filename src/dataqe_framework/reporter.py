@@ -200,6 +200,36 @@ class HTMLReporter:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+    def _aggregate_replacements_from_results(self, results: List[Dict[str, Any]]) -> Dict[str, Dict[str, str]]:
+        """
+        Aggregate unique replacements from all test results.
+
+        Args:
+            results: List of test result dictionaries
+
+        Returns:
+            Dict with 'dataset_placeholders' and 'release_labels' dicts containing unique replacements
+        """
+        aggregated = {
+            "dataset_placeholders": {},
+            "release_labels": {}
+        }
+
+        for result in results:
+            replacements = result.get("replacements", {})
+            if not replacements:
+                continue
+
+            # Aggregate dataset placeholders
+            dataset_placeholders = replacements.get("dataset_placeholders", {})
+            aggregated["dataset_placeholders"].update(dataset_placeholders)
+
+            # Aggregate release labels
+            release_labels = replacements.get("release_labels", {})
+            aggregated["release_labels"].update(release_labels)
+
+        return aggregated
+
     def generate_report(self, results: List[Dict[str, Any]], summary: ExecutionSummary, metadata: Optional[ExecutionMetadata] = None) -> str:
         """
         Generate HTML report and save to file as ExecutionReport.html.
@@ -254,9 +284,31 @@ class HTMLReporter:
 
         rows_html = "\n".join(rows)
 
-        # Build metadata section if available
+        # Build metadata section with aggregated replacements if available
         metadata_html = ""
         if metadata:
+            # Aggregate replacements from all results
+            aggregated_replacements = self._aggregate_replacements_from_results(results)
+            replacements_html = ""
+
+            dataset_placeholders = aggregated_replacements.get("dataset_placeholders", {})
+            release_labels = aggregated_replacements.get("release_labels", {})
+
+            if dataset_placeholders or release_labels:
+                replacements_html = "<br/><p><strong>Dataset Placeholders:</strong></p>"
+                if dataset_placeholders:
+                    replacements_html += "<ul style='margin: 5px 0; padding-left: 20px;'>"
+                    for placeholder, value in dataset_placeholders.items():
+                        replacements_html += f"<li>{placeholder} → {value}</li>"
+                    replacements_html += "</ul>"
+
+                if release_labels:
+                    replacements_html += "<p><strong>Release Labels:</strong></p>"
+                    replacements_html += "<ul style='margin: 5px 0; padding-left: 20px;'>"
+                    for placeholder, value in release_labels.items():
+                        replacements_html += f"<li>{placeholder} → {value}</li>"
+                    replacements_html += "</ul>"
+
             metadata_html = f"""
     <details class="metadata-section">
         <summary>📋 Execution Metadata (Click to expand)</summary>
@@ -266,6 +318,7 @@ class HTMLReporter:
             <p><strong>Test Scripts:</strong> {metadata.get_test_scripts()}</p>
             <p><strong>Suite Owners:</strong> {metadata.get_suite_owners()}</p>
             <p><strong>Execution Time:</strong> {metadata.get_timestamp_str()}</p>
+            {replacements_html}
         </div>
     </details>
 """
@@ -460,6 +513,36 @@ class CSVReporter:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+    def _aggregate_replacements_from_results(self, results: List[Dict[str, Any]]) -> Dict[str, Dict[str, str]]:
+        """
+        Aggregate unique replacements from all test results.
+
+        Args:
+            results: List of test result dictionaries
+
+        Returns:
+            Dict with 'dataset_placeholders' and 'release_labels' dicts containing unique replacements
+        """
+        aggregated = {
+            "dataset_placeholders": {},
+            "release_labels": {}
+        }
+
+        for result in results:
+            replacements = result.get("replacements", {})
+            if not replacements:
+                continue
+
+            # Aggregate dataset placeholders
+            dataset_placeholders = replacements.get("dataset_placeholders", {})
+            aggregated["dataset_placeholders"].update(dataset_placeholders)
+
+            # Aggregate release labels
+            release_labels = replacements.get("release_labels", {})
+            aggregated["release_labels"].update(release_labels)
+
+        return aggregated
+
     def generate_report(self, results: List[Dict[str, Any]], summary: ExecutionSummary, metadata: Optional[ExecutionMetadata] = None) -> str:
         """
         Generate CSV report and save to file as ExecutionReport.csv.
@@ -538,6 +621,23 @@ class CSVReporter:
                 writer.writerow(["Test Scripts", metadata.get_test_scripts()])
                 writer.writerow(["Suite Owners", metadata.get_suite_owners()])
                 writer.writerow(["Execution Timestamp", metadata.get_timestamp_str()])
+
+                # Write aggregated replacements if any exist
+                aggregated_replacements = self._aggregate_replacements_from_results(results)
+                dataset_placeholders = aggregated_replacements.get("dataset_placeholders", {})
+                release_labels = aggregated_replacements.get("release_labels", {})
+
+                if dataset_placeholders or release_labels:
+                    writer.writerow([])
+                    writer.writerow(["REPLACEMENTS"])
+                    if dataset_placeholders:
+                        writer.writerow(["Dataset Placeholders"])
+                        for placeholder, value in dataset_placeholders.items():
+                            writer.writerow(["", f"{placeholder} → {value}"])
+                    if release_labels:
+                        writer.writerow(["Release Labels"])
+                        for placeholder, value in release_labels.items():
+                            writer.writerow(["", f"{placeholder} → {value}"])
 
         return str(filepath)
 
@@ -636,6 +736,36 @@ class FailedExecutionReporter:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+    def _aggregate_replacements_from_results(self, results: List[Dict[str, Any]]) -> Dict[str, Dict[str, str]]:
+        """
+        Aggregate unique replacements from all test results.
+
+        Args:
+            results: List of test result dictionaries
+
+        Returns:
+            Dict with 'dataset_placeholders' and 'release_labels' dicts containing unique replacements
+        """
+        aggregated = {
+            "dataset_placeholders": {},
+            "release_labels": {}
+        }
+
+        for result in results:
+            replacements = result.get("replacements", {})
+            if not replacements:
+                continue
+
+            # Aggregate dataset placeholders
+            dataset_placeholders = replacements.get("dataset_placeholders", {})
+            aggregated["dataset_placeholders"].update(dataset_placeholders)
+
+            # Aggregate release labels
+            release_labels = replacements.get("release_labels", {})
+            aggregated["release_labels"].update(release_labels)
+
+        return aggregated
+
     def generate_report(self, results: List[Dict[str, Any]], summary: ExecutionSummary, metadata: Optional[ExecutionMetadata] = None) -> str:
         """
         Generate FailedExecutionReport.html with failed tests or all-passed message.
@@ -659,7 +789,7 @@ class FailedExecutionReporter:
         if all_problem_tests:
             html_content = self._build_failed_tests_html(all_problem_tests, summary, metadata)
         else:
-            html_content = self._build_all_passed_html(summary, metadata)
+            html_content = self._build_all_passed_html(summary, metadata, results)
 
         with open(filepath, "w") as f:
             f.write(html_content)
@@ -698,9 +828,31 @@ class FailedExecutionReporter:
 
         rows_html = "\n".join(rows)
 
-        # Build metadata section if available
+        # Build metadata section with aggregated replacements if available
         metadata_html = ""
         if metadata:
+            # Aggregate replacements from all results
+            aggregated_replacements = self._aggregate_replacements_from_results(failed_tests)
+            replacements_html = ""
+
+            dataset_placeholders = aggregated_replacements.get("dataset_placeholders", {})
+            release_labels = aggregated_replacements.get("release_labels", {})
+
+            if dataset_placeholders or release_labels:
+                replacements_html = "<br/><p><strong>Dataset Placeholders:</strong></p>"
+                if dataset_placeholders:
+                    replacements_html += "<ul style='margin: 5px 0; padding-left: 20px;'>"
+                    for placeholder, value in dataset_placeholders.items():
+                        replacements_html += f"<li>{placeholder} → {value}</li>"
+                    replacements_html += "</ul>"
+
+                if release_labels:
+                    replacements_html += "<p><strong>Release Labels:</strong></p>"
+                    replacements_html += "<ul style='margin: 5px 0; padding-left: 20px;'>"
+                    for placeholder, value in release_labels.items():
+                        replacements_html += f"<li>{placeholder} → {value}</li>"
+                    replacements_html += "</ul>"
+
             metadata_html = f"""
     <details class="metadata-section">
         <summary>📋 Execution Metadata (Click to expand)</summary>
@@ -710,6 +862,7 @@ class FailedExecutionReporter:
             <p><strong>Test Scripts:</strong> {metadata.get_test_scripts()}</p>
             <p><strong>Suite Owners:</strong> {metadata.get_suite_owners()}</p>
             <p><strong>Execution Time:</strong> {metadata.get_timestamp_str()}</p>
+            {replacements_html}
         </div>
     </details>
 """
@@ -865,11 +1018,33 @@ class FailedExecutionReporter:
 </html>
 """
 
-    def _build_all_passed_html(self, summary: ExecutionSummary, metadata: Optional[ExecutionMetadata] = None) -> str:
+    def _build_all_passed_html(self, summary: ExecutionSummary, metadata: Optional[ExecutionMetadata] = None, results: Optional[List[Dict[str, Any]]] = None) -> str:
         """Build HTML content for all-passed message."""
         # Build metadata section if available
         metadata_html = ""
         if metadata:
+            # Aggregate replacements from all results if provided
+            replacements_html = ""
+            if results:
+                aggregated_replacements = self._aggregate_replacements_from_results(results)
+                dataset_placeholders = aggregated_replacements.get("dataset_placeholders", {})
+                release_labels = aggregated_replacements.get("release_labels", {})
+
+                if dataset_placeholders or release_labels:
+                    replacements_html = "<br/><p><strong>Dataset Placeholders:</strong></p>"
+                    if dataset_placeholders:
+                        replacements_html += "<ul style='margin: 5px 0; padding-left: 20px;'>"
+                        for placeholder, value in dataset_placeholders.items():
+                            replacements_html += f"<li>{placeholder} → {value}</li>"
+                        replacements_html += "</ul>"
+
+                    if release_labels:
+                        replacements_html += "<p><strong>Release Labels:</strong></p>"
+                        replacements_html += "<ul style='margin: 5px 0; padding-left: 20px;'>"
+                        for placeholder, value in release_labels.items():
+                            replacements_html += f"<li>{placeholder} → {value}</li>"
+                        replacements_html += "</ul>"
+
             metadata_html = f"""
     <details class="metadata-section">
         <summary>📋 Execution Metadata (Click to expand)</summary>
@@ -879,6 +1054,7 @@ class FailedExecutionReporter:
             <p><strong>Test Scripts:</strong> {metadata.get_test_scripts()}</p>
             <p><strong>Suite Owners:</strong> {metadata.get_suite_owners()}</p>
             <p><strong>Execution Time:</strong> {metadata.get_timestamp_str()}</p>
+            {replacements_html}
         </div>
     </details>
 """
