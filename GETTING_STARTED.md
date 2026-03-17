@@ -4,7 +4,7 @@ Quick start guide to set up and run your first data quality validation.
 
 ## Prerequisites
 
-- Python 3.8 or higher
+- Python 3.9 or higher
 - pip package manager
 - Access to source and target databases
 - (For BigQuery) Service account JSON credentials file
@@ -205,8 +205,7 @@ config_block_releases:
       project_id: analytics-project
       dataset_id: staging
       credentials_path: /path/to/service-account.json
-    config_query_key: get_release_info
-    source_name: sales_data
+      config_query_key: get_release_info
 
   target:
     database_type: gcpbq
@@ -214,8 +213,7 @@ config_block_releases:
       project_id: analytics-project
       dataset_id: production
       credentials_path: /path/to/service-account.json
-    config_query_key: get_release_info
-    source_name: sales_data
+      config_query_key: get_release_info
 
   other:
     validation_script: release_tests.yml
@@ -238,14 +236,10 @@ get_release_info: |
     source:
       query: |
         SELECT COUNT(*) as value FROM SALES_DATA_CURR_WEEK.transactions
-      config_query_key: get_release_info
-      source_name: sales_data
 
     target:
       query: |
         SELECT COUNT(*) as value FROM SALES_DATA_CURR_WEEK.transactions
-      config_query_key: get_release_info
-      source_name: sales_data
 
     comparisons:
       comment: "Current release must match"
@@ -255,14 +249,10 @@ get_release_info: |
     source:
       query: |
         SELECT COUNT(*) as value FROM SALES_DATA_PREV_WEEK.transactions
-      config_query_key: get_release_info
-      source_name: sales_data
 
     target:
       query: |
         SELECT COUNT(*) as value FROM SALES_DATA_PREV_WEEK.transactions
-      config_query_key: get_release_info
-      source_name: sales_data
 
     comparisons:
       comment: "Previous release must match"
@@ -533,7 +523,7 @@ chmod 600 /path/to/credentials.json
 1. **Read Configuration Guide**: [CONFIGURATION.md](CONFIGURATION.md)
 2. **Learn About Preprocessor**: [PREPROCESSOR.md](PREPROCESSOR.md)
 3. **Understand Architecture**: [ARCHITECTURE.md](ARCHITECTURE.md)
-4. **Check Examples**: See `example_preprocessor_*.yml` files
+4. **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Getting Help
 

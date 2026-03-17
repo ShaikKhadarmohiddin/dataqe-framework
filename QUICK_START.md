@@ -2,9 +2,9 @@
 
 DataQE Framework quick reference for common use cases.
 
-## TL;DR - Variable Replacement & Custom Output (v0.2.8)
+## TL;DR - Latest Features (v0.3.5)
 
-The dataqe-framework v0.2.8 now supports variable replacement in test scripts and custom output directories.
+The dataqe-framework v0.3.5 includes aggregated replacement tracking, multi-block configuration, and dynamic variable replacement.
 
 ### Quick Variable Replacement
 
@@ -266,28 +266,23 @@ bq.close()
 - Secure file handling (permissions 0o600)
 - Comprehensive error handling
 
-## Files Changed
+## Files Changed (Latest)
+
+### Modified (v0.3.5)
+- `src/dataqe_framework/reporter.py` - Aggregated replacement tracking in all reporters
+- `tests/test_replacement_tracking.py` - Updated tests for metadata-level replacements
+- `pyproject.toml` - Version bumped to 0.3.5
+- `README.md` - Version and release notes updated
+
+### Modified (v0.3.4)
+- `src/dataqe_framework/executor.py` - Replacement tracking in results
+- `src/dataqe_framework/preprocessor.py` - Return replacement mappings
 
 ### Modified (v0.2.8)
-- `src/dataqe_framework/cli.py` - Variable replacement, output directory control, path resolution
-- `pyproject.toml` - Version bumped to 0.2.8
-- `README.md` - Variable replacement examples, output directory usage
-- `CONFIGURATION.md` - Variable replacement guide, improved path documentation
-- `ENHANCEMENTS_SUMMARY.md` - v0.2.8 feature documentation
-- `QUICK_START.md` - This file
+- `src/dataqe_framework/cli.py` - Variable replacement, output directory control
 
 ### Modified (v0.2.7)
 - `src/dataqe_framework/executor.py` - Block name tracking
-- README.md, CONFIGURATION.md - Multi-block examples
-
-### Previously Modified (v0.2.5+)
-- `src/dataqe_framework/connectors/mysql_connector.py` - Added logging
-- `src/dataqe_framework/connectors/bigquery_connector.py` - Improved PHI detection
-
-### New Files Created (v0.2.5+)
-- `src/dataqe_framework/credentials_extractor.py` - Credentials extraction utility
-- `KUBERNETES_CREDENTIALS_GUIDE.md` - Detailed guide
-- `ENHANCEMENTS_SUMMARY.md` - Full summary
 
 ## Troubleshooting
 
@@ -312,13 +307,17 @@ print(f"Profile: {profile}")
 
 ## Documentation
 
-- **ENHANCEMENTS_SUMMARY.md** - Complete technical overview
-- **KUBERNETES_CREDENTIALS_GUIDE.md** - Detailed usage guide with examples
-- **QUICK_START.md** - This quick reference
+- **README.md** - Main project documentation with all features
+- **CONFIGURATION.md** - Detailed configuration reference
+- **PREPROCESSOR.md** - Dynamic dataset replacement guide
+- **ARCHITECTURE.md** - Technical architecture and design
+- **GETTING_STARTED.md** - Detailed setup and examples
 
 ## Support
 
 For detailed information, see:
-1. `KUBERNETES_CREDENTIALS_GUIDE.md` - Configuration examples and best practices
-2. `ENHANCEMENTS_SUMMARY.md` - Technical details of all changes
-3. Code comments in `credentials_extractor.py` and connectors
+1. `README.md` - Overview and quick start
+2. `CONFIGURATION.md` - Configuration reference
+3. `PREPROCESSOR.md` - Dynamic replacement guide
+4. `ARCHITECTURE.md` - System design
+5. `GETTING_STARTED.md` - Detailed tutorials
