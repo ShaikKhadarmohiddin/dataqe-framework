@@ -2,7 +2,7 @@
 
 A powerful Python framework for validating data quality and ensuring data consistency between source and target databases. Designed for data migration projects, ETL validation, and cross-database reconciliation.
 
-**Version**: 0.3.3
+**Version**: 0.3.5
 
 ## Overview
 
@@ -48,7 +48,7 @@ DataQE Framework enables organizations to:
 ## Installation
 
 ### Prerequisites
-- Python 3.8+
+- Python 3.9+
 - pip
 
 ### Install from Source
@@ -360,8 +360,6 @@ JOIN EDW_PRCD_METADATA.addresses ON customers.id = addresses.customer_id
 ```
 
 All formats are fully backward compatible. Format 1 is recommended for new configurations as it provides flexibility with the `bq_project_id` fallback.
-
-For detailed documentation on the fallback feature, see [REPLACE_DATASET_FALLBACK.md](REPLACE_DATASET_FALLBACK.md).
 
 ## Test Suite Definition
 
@@ -801,6 +799,24 @@ For support and questions:
 - Consult test output and logs for error details
 
 ## Version History
+
+### 0.3.5 (Replacement Tracking Aggregation)
+- **NEW**: Aggregated replacement details at block/execution level in reports
+- **IMPROVED**: HTML reports now show unique dataset placeholders and release labels in metadata section
+- **IMPROVED**: CSV reports include REPLACEMENTS section with aggregated mappings
+- **IMPROVED**: Cleaner reports - eliminated per-test replacement details duplication
+- Backward compatible with existing configurations
+
+### 0.3.4 (Replacement Tracking)
+- **NEW**: Track all dataset and release label replacements
+- **NEW**: Capture replacement mappings in execution results
+- **IMPROVED**: Updated reporters to display replacement tracking information
+- Backward compatible with results without replacements field
+
+### 0.3.3 (Dataset Replacement with Fallback)
+- **NEW**: Format 1 with `bq_project_id` fallback for dataset replacement
+- **IMPROVED**: Works in both standalone and castlight-integrated environments
+- Fully backward compatible with Format 2 and Format 3
 
 ### 0.2.8 (Variable Replacement & Output Directory)
 - **NEW**: Variable replacement in test scripts (--replace option)
