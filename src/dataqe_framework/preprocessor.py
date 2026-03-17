@@ -39,7 +39,7 @@ class QueryPreprocessor:
         if self.preprocessor_queries_path:
             self._load_preprocessor_queries()
 
-    def replace_dataset_placeholders(self, query: str) -> str:
+    def replace_dataset_placeholders(self, query: str) -> tuple:
         """
         Replace dataset/project placeholders using mapping from config.
 
@@ -56,33 +56,43 @@ class QueryPreprocessor:
             query: Original query with placeholders
 
         Returns:
-            Query with dataset placeholders replaced by actual values
+            Tuple of (modified_query, replacement_dict) where replacement_dict contains
+            {"PLACEHOLDER": "actual_value", ...} for all replacements made
         """
         replace_dataset = self.preprocessor_config.get("replace_dataset")
         if not replace_dataset:
-            return query
+            return query, {}
 
         # Build placeholder mappings based on format
         placeholder_mappings = self._build_placeholder_mappings(replace_dataset)
 
         if not placeholder_mappings:
-            return query
+            return query, {}
 
         modified_query = query
-        for placeholder, actual_value in placeholder_mappings.items():
-            # Handle both PLACEHOLDER and placeholder formats
-            modified_query = modified_query.replace(placeholder, actual_value)
-            # Also try lowercase version if different
-            if placeholder.lower() != placeholder:
-                modified_query = modified_query.replace(placeholder.lower(), actual_value)
+        replacements_made = {}
 
-        if modified_query != query:
+        for placeholder, actual_value in placeholder_mappings.items():
+            # Check if placeholder exists in query before replacing
+            if placeholder in modified_query or placeholder.lower() in modified_query:
+                # Handle both PLACEHOLDER and placeholder formats
+                if placeholder in modified_query:
+                    modified_query = modified_query.replace(placeholder, actual_value)
+                    replacements_made[placeholder] = actual_value
+                # Also try lowercase version if different
+                if placeholder.lower() != placeholder and placeholder.lower() in modified_query:
+                    modified_query = modified_query.replace(placeholder.lower(), actual_value)
+                    # Record lowercase version too if it was replaced
+                    if placeholder not in replacements_made:
+                        replacements_made[placeholder.lower()] = actual_value
+
+        if replacements_made:
             logger.debug(
                 f"Replaced dataset placeholders in query. "
-                f"Replacements: {list(placeholder_mappings.keys())}"
+                f"Replacements: {replacements_made}"
             )
 
-        return modified_query
+        return modified_query, replacements_made
 
     def _build_placeholder_mappings(self, replace_dataset) -> Dict[str, str]:
         """
@@ -363,7 +373,7 @@ class QueryPreprocessor:
         # Replace placeholders in query
         return self.replace_placeholders_in_query(query, source_name, mappings)
 
-    def replace_release_labels(self, query: str, connector: Any) -> str:
+    def replace_release_labels(self, query: str, connector: Any) -> tuple:
         """
         Automatically replace all release label placeholders in query without needing
         source_name or config_query_key specified per query.
@@ -377,11 +387,12 @@ class QueryPreprocessor:
             connector: Database connector for executing preprocessor query
 
         Returns:
-            Processed query with all placeholders replaced by actual dataset names
+            Tuple of (modified_query, replacement_dict) where replacement_dict contains
+            {"SOURCE_CURR_WEEK": "actual_value", ...} for all replacements made
         """
         # If no preprocessor config or config_query_key, return original query
         if not self.preprocessor_config or not self.preprocessor_config.get("config_query_key"):
-            return query
+            return query, {}
 
         # Get release labels (cache to avoid multiple queries)
         if self.release_labels_cache is None:
@@ -389,7 +400,7 @@ class QueryPreprocessor:
             release_labels = self.get_dataset_mappings(config_query_key, connector)
 
             if not release_labels:
-                return query
+                return query, {}
 
             # Convert mappings to list format for easier iteration
             self.release_labels_cache = [
@@ -404,7 +415,7 @@ class QueryPreprocessor:
         # Replace all placeholders in query
         return self._replace_all_release_labels(query, self.release_labels_cache)
 
-    def _replace_all_release_labels(self, query: str, release_labels: List[Dict[str, str]]) -> str:
+    def _replace_all_release_labels(self, query: str, release_labels: List[Dict[str, str]]) -> tuple:
         """
         Replace all SOURCE_CURR_WEEK and SOURCE_PREV_WEEK placeholders in query.
 
@@ -413,15 +424,16 @@ class QueryPreprocessor:
             release_labels: List of release label mappings
 
         Returns:
-            Query with all placeholders replaced
+            Tuple of (modified_query, replacement_dict) where replacement_dict contains
+            {"SOURCE_CURR_WEEK": "actual_value", ...} for all replacements made
         """
         modified_query = query
+        replacements_made = {}
 
         if not release_labels:
             logger.debug("No release labels to replace")
-            return modified_query
+            return modified_query, replacements_made
 
-        replacements_made = False
         for label in release_labels:
             source = label.get("source", "").upper()
             curr_label = label.get("curr_release_label")
@@ -435,18 +447,15 @@ class QueryPreprocessor:
             curr_placeholder = f"{source}_CURR_WEEK"
             prev_placeholder = f"{source}_PREV_WEEK"
 
-            if curr_placeholder in modified_query or prev_placeholder in modified_query:
-                replacements_made = True
-                modified_query = modified_query.replace(curr_placeholder, curr_label).replace(prev_placeholder, prev_label)
-                # logger.info(
-                #     f"Replaced placeholders for '{source}': "
-                #     f"{curr_placeholder} → {curr_label}, "
-                #     f"{prev_placeholder} → {prev_label}"
-                # )
-            # else:
-                # logger.debug(f"No placeholders found for '{source}'")
+            if curr_placeholder in modified_query:
+                modified_query = modified_query.replace(curr_placeholder, curr_label)
+                replacements_made[curr_placeholder] = curr_label
 
-        # if not replacements_made:
-        #     logger.info("No placeholder replacements made - query returned unchanged")
+            if prev_placeholder in modified_query:
+                modified_query = modified_query.replace(prev_placeholder, prev_label)
+                replacements_made[prev_placeholder] = prev_label
 
-        return modified_query
+        if replacements_made:
+            logger.debug(f"Replaced release label placeholders: {replacements_made}")
+
+        return modified_query, replacements_made

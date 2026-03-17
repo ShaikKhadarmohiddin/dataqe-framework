@@ -200,6 +200,47 @@ class HTMLReporter:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+    def _format_replacements_html(self, replacements: Dict[str, Any]) -> str:
+        """
+        Format replacements as HTML collapsible section.
+
+        Args:
+            replacements: Dict with 'dataset_placeholders' and 'release_labels'
+
+        Returns:
+            HTML string for replacements section, or empty string if no replacements
+        """
+        if not replacements:
+            return ""
+
+        dataset_placeholders = replacements.get("dataset_placeholders", {})
+        release_labels = replacements.get("release_labels", {})
+
+        if not dataset_placeholders and not release_labels:
+            return ""
+
+        html_items = []
+
+        if dataset_placeholders:
+            html_items.append("<strong>Dataset Placeholders:</strong><br/>")
+            for placeholder, value in dataset_placeholders.items():
+                html_items.append(f"&nbsp;&nbsp;&nbsp;&nbsp;{placeholder} → {value}<br/>")
+
+        if release_labels:
+            if html_items:
+                html_items.append("<br/>")
+            html_items.append("<strong>Release Labels:</strong><br/>")
+            for placeholder, value in release_labels.items():
+                html_items.append(f"&nbsp;&nbsp;&nbsp;&nbsp;{placeholder} → {value}<br/>")
+
+        replacements_html = "".join(html_items)
+        return f"""<details style="margin-top: 10px; background-color: #f9f9f9; padding: 10px; border-radius: 3px; border-left: 3px solid #27ae60;">
+                <summary style="cursor: pointer; font-weight: bold; color: #27ae60;">🔄 Replacements</summary>
+                <div style="margin-top: 10px; margin-left: 10px; font-size: 0.9em; font-family: monospace;">
+                    {replacements_html}
+                </div>
+            </details>"""
+
     def generate_report(self, results: List[Dict[str, Any]], summary: ExecutionSummary, metadata: Optional[ExecutionMetadata] = None) -> str:
         """
         Generate HTML report and save to file as ExecutionReport.html.
@@ -239,10 +280,19 @@ class HTMLReporter:
                     error_msg = error_msg[:97] + "..."
                 error_display = f"<br/><small style='color: #c0392b; font-weight: bold;'>{error_type}: {error_msg}</small>"
 
+            # Build replacements display if any
+            replacements_display = ""
+            replacements = result.get("replacements", {})
+            if replacements:
+                replacements_display = self._format_replacements_html(replacements)
+
             rows.append(
                 f"""
                 <tr class="{status_class}">
-                    <td>{result['test_name']}</td>
+                    <td>
+                        {result['test_name']}
+                        {replacements_display}
+                    </td>
                     <td>{result.get('severity', 'N/A')}</td>
                     <td>{self._safe_str(result.get('source_value'))}</td>
                     <td>{self._safe_str(result.get('target_value'))}</td>
@@ -460,6 +510,33 @@ class CSVReporter:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+    def _format_replacements_csv(self, replacements: Dict[str, Any]) -> str:
+        """
+        Format replacements as CSV-friendly string.
+
+        Args:
+            replacements: Dict with 'dataset_placeholders' and 'release_labels'
+
+        Returns:
+            Semicolon-separated string with all replacements
+        """
+        if not replacements:
+            return ""
+
+        parts = []
+
+        dataset_placeholders = replacements.get("dataset_placeholders", {})
+        if dataset_placeholders:
+            for placeholder, value in dataset_placeholders.items():
+                parts.append(f"{placeholder}→{value}")
+
+        release_labels = replacements.get("release_labels", {})
+        if release_labels:
+            for placeholder, value in release_labels.items():
+                parts.append(f"{placeholder}→{value}")
+
+        return "; ".join(parts) if parts else ""
+
     def generate_report(self, results: List[Dict[str, Any]], summary: ExecutionSummary, metadata: Optional[ExecutionMetadata] = None) -> str:
         """
         Generate CSV report and save to file as ExecutionReport.csv.
@@ -487,6 +564,7 @@ class CSVReporter:
                 "Status",
                 "Error Type",
                 "Error Message",
+                "Replacements",
                 "Execution Time (ms)",
                 "Source Query Time (ms)",
                 "Target Query Time (ms)",
@@ -504,6 +582,10 @@ class CSVReporter:
                     error_type_display = result.get("error_type", "Unknown")
                     error_msg_display = result.get("error_message", "Unknown")
 
+                # Format replacements for CSV
+                replacements = result.get("replacements", {})
+                replacements_display = self._format_replacements_csv(replacements)
+
                 writer.writerow([
                     result["test_name"],
                     result.get("severity", "N/A"),
@@ -512,6 +594,7 @@ class CSVReporter:
                     status_display,
                     error_type_display,
                     error_msg_display,
+                    replacements_display,
                     f"{result.get('execution_time_ms', 0):.2f}",
                     f"{result.get('source_query_time_ms', 0):.2f}",
                     f"{result.get('target_query_time_ms', 0):.2f}",
@@ -636,6 +719,47 @@ class FailedExecutionReporter:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+    def _format_replacements_html(self, replacements: Dict[str, Any]) -> str:
+        """
+        Format replacements as HTML collapsible section.
+
+        Args:
+            replacements: Dict with 'dataset_placeholders' and 'release_labels'
+
+        Returns:
+            HTML string for replacements section, or empty string if no replacements
+        """
+        if not replacements:
+            return ""
+
+        dataset_placeholders = replacements.get("dataset_placeholders", {})
+        release_labels = replacements.get("release_labels", {})
+
+        if not dataset_placeholders and not release_labels:
+            return ""
+
+        html_items = []
+
+        if dataset_placeholders:
+            html_items.append("<strong>Dataset Placeholders:</strong><br/>")
+            for placeholder, value in dataset_placeholders.items():
+                html_items.append(f"&nbsp;&nbsp;&nbsp;&nbsp;{placeholder} → {value}<br/>")
+
+        if release_labels:
+            if html_items:
+                html_items.append("<br/>")
+            html_items.append("<strong>Release Labels:</strong><br/>")
+            for placeholder, value in release_labels.items():
+                html_items.append(f"&nbsp;&nbsp;&nbsp;&nbsp;{placeholder} → {value}<br/>")
+
+        replacements_html = "".join(html_items)
+        return f"""<details style="margin-top: 10px; background-color: #f9f9f9; padding: 10px; border-radius: 3px; border-left: 3px solid #c0392b;">
+                <summary style="cursor: pointer; font-weight: bold; color: #c0392b;">🔄 Replacements</summary>
+                <div style="margin-top: 10px; margin-left: 10px; font-size: 0.9em; font-family: monospace;">
+                    {replacements_html}
+                </div>
+            </details>"""
+
     def generate_report(self, results: List[Dict[str, Any]], summary: ExecutionSummary, metadata: Optional[ExecutionMetadata] = None) -> str:
         """
         Generate FailedExecutionReport.html with failed tests or all-passed message.
@@ -683,10 +807,19 @@ class FailedExecutionReporter:
                     error_msg = error_msg[:97] + "..."
                 error_display = f"<br/><small style='color: #c0392b; font-weight: bold;'>{error_type}: {error_msg}</small>"
 
+            # Build replacements display if any
+            replacements_display = ""
+            replacements = result.get("replacements", {})
+            if replacements:
+                replacements_display = self._format_replacements_html(replacements)
+
             rows.append(
                 f"""
                 <tr class="{status_class}">
-                    <td>{result['test_name']}</td>
+                    <td>
+                        {result['test_name']}
+                        {replacements_display}
+                    </td>
                     <td>{result.get('severity', 'N/A')}</td>
                     <td>{self._safe_str(result.get('source_value'))}</td>
                     <td>{self._safe_str(result.get('target_value'))}</td>

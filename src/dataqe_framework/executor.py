@@ -136,13 +136,15 @@ class ValidationExecutor:
                 error_message = None
                 error_type = None
                 error_occurred = False
+                source_replacements = {}
+                target_replacements = {}
 
                 # Run Source
                 if "source" in test_config:
                     source_query = test_config["source"]["query"]
 
                     # Process query with source preprocessor (automatic replacement of all release labels)
-                    source_query = self._process_query_with_preprocessor(
+                    source_query, source_replacements = self._process_query_with_preprocessor(
                         source_query, self.source_connector, self.source_preprocessor
                     )
 
@@ -163,7 +165,7 @@ class ValidationExecutor:
                     target_query = test_config["target"]["query"]
 
                     # Process query with target preprocessor (automatic replacement of all release labels)
-                    target_query = self._process_query_with_preprocessor(
+                    target_query, target_replacements = self._process_query_with_preprocessor(
                         target_query, self.target_connector, self.target_preprocessor
                     )
 
@@ -195,6 +197,9 @@ class ValidationExecutor:
                 test_end = datetime.now()
                 execution_time_ms = self._calculate_duration_ms(test_start)
 
+                # Combine source and target replacements
+                all_replacements = self._merge_replacements(source_replacements, target_replacements)
+
                 result_dict = {
                     "test_name": test_name,
                     "severity": test_config.get("severity"),
@@ -210,7 +215,8 @@ class ValidationExecutor:
                     "script_name": script_name,
                     "error_occurred": error_occurred,
                     "error_type": error_type,
-                    "error_message": error_message
+                    "error_message": error_message,
+                    "replacements": all_replacements
                 }
 
                 results.append(result_dict)
@@ -232,7 +238,7 @@ class ValidationExecutor:
         # assuming single value queries
         return list(result[0].values())[0]
 
-    def _process_query_with_preprocessor(self, query: str, connector, preprocessor) -> str:
+    def _process_query_with_preprocessor(self, query: str, connector, preprocessor) -> tuple:
         """
         Process query with preprocessor to replace dataset placeholders and release labels.
 
@@ -246,24 +252,69 @@ class ValidationExecutor:
             preprocessor: QueryPreprocessor instance (source or target)
 
         Returns:
-            Processed query (with replacements if applicable) or original query
+            Tuple of (processed_query, replacements_dict) where replacements_dict contains
+            all replacements made in format:
+            {
+                "dataset_placeholders": {"PD_CDW_METADATA": "prj-eng-n-pd-prcd-df11", ...},
+                "release_labels": {"BCBSA_EXPORT_CURR_WEEK": "bcbsa_export_2", ...}
+            }
         """
         if not preprocessor or not connector:
-            # Preprocessor not initialized or no connector, return original query
-            return query
+            # Preprocessor not initialized or no connector, return original query with empty replacements
+            return query, {"dataset_placeholders": {}, "release_labels": {}}
 
         try:
             # Step 1: Replace dataset placeholders first (e.g., EDW_PRCD_PROJECT)
-            processed_query = preprocessor.replace_dataset_placeholders(query)
+            processed_query, dataset_replacements = preprocessor.replace_dataset_placeholders(query)
 
             # Step 2: Replace release label placeholders (e.g., SOURCE_CURR_WEEK)
-            processed_query = preprocessor.replace_release_labels(processed_query, connector)
+            processed_query, release_replacements = preprocessor.replace_release_labels(processed_query, connector)
 
-            return processed_query
+            # Combine all replacements
+            all_replacements = {
+                "dataset_placeholders": dataset_replacements,
+                "release_labels": release_replacements
+            }
+
+            return processed_query, all_replacements
         except Exception as e:
             logger.error(f"Error processing query with preprocessor: {str(e)}")
-            # Return original query on error
-            return query
+            # Return original query with empty replacements on error
+            return query, {"dataset_placeholders": {}, "release_labels": {}}
+
+    def _merge_replacements(self, source_replacements: dict, target_replacements: dict) -> dict:
+        """
+        Merge source and target replacements into a single dict, avoiding duplicates.
+
+        Args:
+            source_replacements: Replacements from source query processing
+            target_replacements: Replacements from target query processing
+
+        Returns:
+            Combined replacements dict with structure:
+            {
+                "dataset_placeholders": {...},
+                "release_labels": {...}
+            }
+        """
+        merged = {
+            "dataset_placeholders": {},
+            "release_labels": {}
+        }
+
+        # Merge dataset placeholders (combine from both source and target)
+        if source_replacements and "dataset_placeholders" in source_replacements:
+            merged["dataset_placeholders"].update(source_replacements["dataset_placeholders"])
+        if target_replacements and "dataset_placeholders" in target_replacements:
+            merged["dataset_placeholders"].update(target_replacements["dataset_placeholders"])
+
+        # Merge release labels (combine from both source and target)
+        if source_replacements and "release_labels" in source_replacements:
+            merged["release_labels"].update(source_replacements["release_labels"])
+        if target_replacements and "release_labels" in target_replacements:
+            merged["release_labels"].update(target_replacements["release_labels"])
+
+        return merged
 
     def _cleanup_temp_credentials(self):
         """
