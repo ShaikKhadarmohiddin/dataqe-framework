@@ -22,9 +22,10 @@ class TestReplaceDatasetPlaceholders(unittest.TestCase):
         preprocessor = QueryPreprocessor(None, preprocessor_config)
 
         query = "SELECT * FROM EDW_PRCD_PROJECT.table_name"
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         self.assertEqual(result, "SELECT * FROM actual-project-id-edw.table_name")
+        self.assertEqual(replacements, {"EDW_PRCD_PROJECT": "actual-project-id-edw"})
 
     def test_replace_multiple_placeholders(self):
         """Test replacing multiple dataset placeholders in same query."""
@@ -41,7 +42,7 @@ class TestReplaceDatasetPlaceholders(unittest.TestCase):
             UNION ALL
             SELECT * FROM PD_CDW_METADATA.table2
         """
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         self.assertIn("actual-project-id-edw.table1", result)
         self.assertIn("actual-project-id-pd.table2", result)
@@ -54,9 +55,10 @@ class TestReplaceDatasetPlaceholders(unittest.TestCase):
         preprocessor = QueryPreprocessor(None, preprocessor_config)
 
         query = "SELECT * FROM EDW_PRCD_PROJECT.table_name"
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         self.assertEqual(result, query)
+        self.assertEqual(replacements, {})
 
     def test_replace_with_no_config(self):
         """Test that query is unchanged with no replace_dataset config."""
@@ -64,18 +66,20 @@ class TestReplaceDatasetPlaceholders(unittest.TestCase):
         preprocessor = QueryPreprocessor(None, preprocessor_config)
 
         query = "SELECT * FROM EDW_PRCD_PROJECT.table_name"
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         self.assertEqual(result, query)
+        self.assertEqual(replacements, {})
 
     def test_replace_with_none_config(self):
         """Test that query is unchanged with None config."""
         preprocessor = QueryPreprocessor(None, None)
 
         query = "SELECT * FROM EDW_PRCD_PROJECT.table_name"
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         self.assertEqual(result, query)
+        self.assertEqual(replacements, {})
 
     def test_replace_multiple_occurrences_of_same_placeholder(self):
         """Test replacing multiple occurrences of same placeholder."""
@@ -90,7 +94,7 @@ class TestReplaceDatasetPlaceholders(unittest.TestCase):
             SELECT a.* FROM EDW_PRCD_PROJECT.table1 a
             JOIN EDW_PRCD_PROJECT.table2 b ON a.id = b.id
         """
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         self.assertEqual(result.count("actual-edw"), 2)
         self.assertNotIn("EDW_PRCD_PROJECT", result)
@@ -106,7 +110,7 @@ class TestReplaceDatasetPlaceholders(unittest.TestCase):
         preprocessor = QueryPreprocessor(None, preprocessor_config)
 
         query = "SELECT * FROM PLACEHOLDER_1.dataset1 UNION ALL SELECT * FROM PLACEHOLDER_2.dataset2"
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         self.assertIn("my-project-prod-2024-q1", result)
         self.assertIn("data_lake_v2_staging", result)
@@ -127,7 +131,7 @@ class TestReplaceDatasetPlaceholders(unittest.TestCase):
             FROM EDW_PRCD_PROJECT.table_name
             WHERE description LIKE '%EDW_PRCD_PROJECT%'
         """
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         # The string literal and LIKE pattern should also be replaced (expected behavior)
         self.assertIn("actual-edw.table_name", result)
@@ -143,7 +147,7 @@ class TestReplaceDatasetPlaceholders(unittest.TestCase):
 
         # Test with uppercase (should match)
         query_upper = "SELECT * FROM EDW_PRCD_PROJECT.table_name"
-        result_upper = preprocessor.replace_dataset_placeholders(query_upper)
+        result_upper, replacements = preprocessor.replace_dataset_placeholders(query_upper)
         self.assertIn("actual-edw", result_upper)
 
 
@@ -277,12 +281,12 @@ get_releases:
             ]
 
             # First replace dataset placeholders
-            query_after_dataset = preprocessor.replace_dataset_placeholders(query)
+            query_after_dataset, dataset_replacements = preprocessor.replace_dataset_placeholders(query)
             self.assertIn("actual-edw", query_after_dataset)
             self.assertNotIn("EDW_PRCD_PROJECT", query_after_dataset)
 
             # Then replace release labels
-            query_after_labels = preprocessor.replace_release_labels(query_after_dataset, mock_connector)
+            query_after_labels, label_replacements = preprocessor.replace_release_labels(query_after_dataset, mock_connector)
             self.assertIn("actual-edw", query_after_labels)
             self.assertIn("release_v1", query_after_labels)
         finally:
@@ -360,8 +364,9 @@ class TestBackwardCompatibility(unittest.TestCase):
         query = "SELECT * FROM EDW_PRCD_PROJECT.table_name"
 
         # Should return original query unchanged
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
         self.assertEqual(result, query)
+        self.assertEqual(replacements, {})
 
     @patch('dataqe_framework.executor.get_connector')
     def test_executor_with_no_preprocessor_path(self, mock_get_connector):
@@ -436,7 +441,7 @@ class TestReplaceDatasetWithConfigDetails(unittest.TestCase):
             JOIN PD_CDW_METADATA.bcbsa_export_2.resulting_qmetrics_min b
             ON a.id = b.id
         """
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         # Check that placeholders are replaced with actual project IDs
         self.assertIn("pd-project-cdw-prod", result)
@@ -467,7 +472,7 @@ class TestReplaceDatasetWithConfigDetails(unittest.TestCase):
         preprocessor = QueryPreprocessor(None, preprocessor_config, mock_config_details)
 
         query = "SELECT * FROM EDW_PRCD_METADATA.table_name"
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         self.assertIn("edw-prod-project", result)
         self.assertNotIn("EDW_PRCD_METADATA", result)
@@ -495,7 +500,7 @@ class TestReplaceDatasetWithConfigDetails(unittest.TestCase):
         preprocessor = QueryPreprocessor(None, preprocessor_config, mock_config_details)
 
         query = "SELECT * FROM PD_CDW_PRCD_METADATA.t1 UNION ALL SELECT * FROM PD_CDW_METADATA.t2"
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         self.assertIn("pd-prod-1", result)
         self.assertIn("pd-prod-2", result)
@@ -511,10 +516,11 @@ class TestReplaceDatasetWithConfigDetails(unittest.TestCase):
         preprocessor = QueryPreprocessor(None, preprocessor_config, None)
 
         query = "SELECT * FROM PD_CDW_PRCD_METADATA.table_name"
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         # Query should be unchanged (no lookup possible)
         self.assertEqual(result, query)
+        self.assertEqual(replacements, {})
 
     def test_replace_with_missing_config_details_key(self):
         """Test handling of missing keys in config_details."""
@@ -530,10 +536,11 @@ class TestReplaceDatasetWithConfigDetails(unittest.TestCase):
         preprocessor = QueryPreprocessor(None, preprocessor_config, mock_config_details)
 
         query = "SELECT * FROM PD_CDW_PRCD_METADATA.table_name"
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         # Query should be unchanged (lookup failed)
         self.assertEqual(result, query)
+        self.assertEqual(replacements, {})
 
     def test_placeholder_caching(self):
         """Test that placeholder lookups are cached."""
@@ -558,8 +565,8 @@ class TestReplaceDatasetWithConfigDetails(unittest.TestCase):
         query1 = "SELECT * FROM PD_CDW_METADATA.table1"
         query2 = "SELECT * FROM PD_CDW_METADATA.table2"
 
-        result1 = preprocessor.replace_dataset_placeholders(query1)
-        result2 = preprocessor.replace_dataset_placeholders(query2)
+        result1, replacements1 = preprocessor.replace_dataset_placeholders(query1)
+        result2, replacements2 = preprocessor.replace_dataset_placeholders(query2)
 
         # Both should be replaced
         self.assertIn("pd-prod", result1)
@@ -592,7 +599,7 @@ class TestReplaceDatasetWithConfigDetails(unittest.TestCase):
         preprocessor = QueryPreprocessor(None, preprocessor_config, mock_config_details)
 
         query = "SELECT * FROM PD_CDW_METADATA.table_name"
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         # Valid replacement should still work
         self.assertIn("pd-prod", result)
@@ -612,10 +619,11 @@ class TestReplaceDatasetWithConfigDetails(unittest.TestCase):
 
         query = "SELECT * FROM PD_CDW_METADATA.table_name"
         # Should use list format logic but fail to lookup
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         # Should return unchanged since config_details lookup failed
         self.assertEqual(result, query)
+        self.assertEqual(replacements, {})
 
     def test_replace_with_valid_list_and_valid_dict(self):
         """Test that dict format still works alongside list format support."""
@@ -628,7 +636,7 @@ class TestReplaceDatasetWithConfigDetails(unittest.TestCase):
         preprocessor = QueryPreprocessor(None, preprocessor_config, None)
 
         query = "SELECT * FROM LEGACY_PLACEHOLDER.table_name"
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         self.assertIn("legacy-project-id", result)
         self.assertNotIn("LEGACY_PLACEHOLDER", result)
@@ -665,7 +673,7 @@ class TestReplaceDatasetListFormatWithFallback(unittest.TestCase):
         preprocessor = QueryPreprocessor(None, preprocessor_config, mock_config_details)
 
         query = "SELECT * FROM PD_CDW_PRCD_METADATA.table WHERE id = 1"
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         # Should use config_details, not fallback
         self.assertIn("castlight-project-123.table", result)
@@ -687,7 +695,7 @@ class TestReplaceDatasetListFormatWithFallback(unittest.TestCase):
         preprocessor = QueryPreprocessor(None, preprocessor_config, None)
 
         query = "SELECT * FROM PD_CDW_PRCD_METADATA.table WHERE id = 1"
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         # Should use fallback since config_details is None
         self.assertIn("fallback-project-456.table", result)
@@ -715,7 +723,7 @@ class TestReplaceDatasetListFormatWithFallback(unittest.TestCase):
             SELECT a.* FROM PD_CDW_PRCD_METADATA.table1 a
             JOIN PD_CDW_METADATA.table2 b ON a.id = b.id
         """
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         self.assertIn("pd-project-123.table1", result)
         self.assertIn("pd-project-456.table2", result)
@@ -736,11 +744,12 @@ class TestReplaceDatasetListFormatWithFallback(unittest.TestCase):
         preprocessor = QueryPreprocessor(None, preprocessor_config, None)
 
         query = "SELECT * FROM PD_CDW_PRCD_METADATA.table WHERE id = 1"
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         # Should not replace since both config_details and bq_project_id are missing
         self.assertIn("PD_CDW_PRCD_METADATA", result)
         self.assertEqual(result, query)
+        self.assertEqual(replacements, {})
 
     def test_list_format_config_details_lookup_fails_uses_fallback(self):
         """Test fallback to bq_project_id when config_details lookup fails."""
@@ -770,7 +779,7 @@ class TestReplaceDatasetListFormatWithFallback(unittest.TestCase):
         preprocessor = QueryPreprocessor(None, preprocessor_config, mock_config_details)
 
         query = "SELECT * FROM PD_CDW_PRCD_METADATA.table WHERE id = 1"
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         # Should fall back to bq_project_id since lookup fails
         self.assertIn("fallback-project-111.table", result)
@@ -791,7 +800,7 @@ class TestReplaceDatasetListFormatWithFallback(unittest.TestCase):
 
         # Test with lowercase placeholder
         query = "SELECT * FROM pd_cdw_prcd_metadata.table WHERE id = 1"
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         self.assertIn("my-project-123.table", result)
         self.assertNotIn("pd_cdw_prcd_metadata", result)
@@ -813,7 +822,7 @@ class TestReplaceDatasetListFormatWithFallback(unittest.TestCase):
             SELECT a.* FROM PD_CDW_PRCD_METADATA.table1 a
             JOIN pd_cdw_prcd_metadata.table2 b ON a.id = b.id
         """
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         # Both uppercase and lowercase should be replaced
         self.assertEqual(result.count("my-project-123"), 2)
@@ -834,7 +843,7 @@ class TestReplaceDatasetListFormatWithFallback(unittest.TestCase):
         preprocessor = QueryPreprocessor(None, preprocessor_config, None)
 
         query = "SELECT * FROM PD_CDW_METADATA.table WHERE id = 1"
-        result = preprocessor.replace_dataset_placeholders(query)
+        result, replacements = preprocessor.replace_dataset_placeholders(query)
 
         self.assertIn("my-gcp-project-pd-001.table", result)
         self.assertNotIn("PD_CDW_METADATA", result)
